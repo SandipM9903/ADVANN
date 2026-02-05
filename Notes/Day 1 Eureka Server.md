@@ -1,4 +1,67 @@
-# 				**ADVANN**
+# **ADVANN**
+
+
+
+
+
+**\*\*\*\* Why we need Eureka Server?**
+
+**Ans: In microservices, you may have many services like:**
+
+
+
+* **user-service**
+* **order-service**
+* **payment-service**
+* **notification-service**
+
+
+
+**Each service runs on different ports and IPs, and they can change anytime (because of scaling, deployment, docker, kubernetes).**
+
+**So the main problem is:**
+
+**❓ How will one service know where another service is running?**
+
+**✅ Eureka Server solves this problem**
+
+**Eureka Server works like a Service Registry / Phonebook**
+
+* **All microservices register themselves in Eureka Server**
+* **Eureka stores their service name + IP + port**
+* **When one service wants to call another, it asks Eureka.**
+
+
+
+**🔥 Example**
+
+**Instead of calling like this:**
+
+
+
+**http://localhost:8082/payment**
+
+
+
+**We can call like:**
+
+
+
+**http://PAYMENT-SERVICE/payment**
+
+
+
+**Eureka will automatically map PAYMENT-SERVICE to the correct running instance.**
+
+
+
+**✅ Small Note:**
+
+**Eureka Server is used for service discovery in microservices. It acts like a registry/phonebook where all microservices register their name, IP, and port, so other services can find and communicate with them without hardcoding URLs.**
+
+================================================================================
+
+
 
 #### **🚀 DAY 1 TASKS (Agile Scrum Style)**
 
@@ -14,7 +77,7 @@
 
 
 
-###### 							**✅ Step-by-Step Day 1 Work**
+###### **✅ Step-by-Step Day 1 Work**
 
 
 
@@ -26,19 +89,19 @@ For Example :
 
 ShopSphere-Microservices/
 
-&nbsp;  service-registry/
+   service-registry/
 
-&nbsp;  api-gateway/
+   api-gateway/
 
-&nbsp;  auth-service/
+   auth-service/
 
-&nbsp;  product-service/
+   product-service/
 
-&nbsp;  order-service/
+   order-service/
 
-&nbsp;  payment-service/
+   payment-service/
 
-&nbsp;  notification-service/
+   notification-service/
 
 ================================================================================
 
@@ -126,11 +189,11 @@ public class ServiceRegistryApplication {
 
 
 
-&nbsp;   public static void main(String\[] args) {
+    public static void main(String\[] args) {
 
-&nbsp;       SpringApplication.run(ServiceRegistryApplication.class, args);
+        SpringApplication.run(ServiceRegistryApplication.class, args);
 
-&nbsp;   }
+    }
 
 }
 
@@ -144,25 +207,25 @@ public class ServiceRegistryApplication {
 
 server:
 
-&nbsp; port: 8761
+  port: 8761
 
 
 
 spring:
 
-&nbsp; application:
+  application:
 
-&nbsp;   name: eureka-service-registry
+    name: eureka-service-registry
 
 eureka:
 
-&nbsp; client:
+  client:
 
-&nbsp;   register-with-eureka: false
+    register-with-eureka: false
 
-&nbsp;   fetch-registry: false
+    fetch-registry: false
 
-Why register-with-eureka: false and fetch-registry: false are false? 
+Why register-with-eureka: false and fetch-registry: false are false?
 
 Because register-with-eureka=false means Eureka Server will not register itself as a client (so it will not appear as a service in the dashboard).
 
@@ -176,7 +239,7 @@ fetch-registry=false means Eureka Server will not fetch the service list because
 
 🟦 Step 6: Verify in Browser
 
-&nbsp;	[http://localhost:8761](http://localhost:8761)
+ 	[http://localhost:8761](http://localhost:8761)
 
 You should see Eureka Dashboard.
 
