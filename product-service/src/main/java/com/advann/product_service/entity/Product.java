@@ -1,16 +1,19 @@
 package com.advann.product_service.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import lombok.Builder;
-import lombok.Data;
+import jakarta.validation.constraints.*;
+import lombok.*;
+
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "products")
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class Product {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -19,11 +22,13 @@ public class Product {
     @Column(nullable = false)
     private String name;
 
-    @NotBlank(message = "Product price cannot be empty.")
+    @NotNull(message = "Product price cannot be null.")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Product price must be greater than 0.")
     @Column(nullable = false)
     private BigDecimal price;
 
-    @NotBlank(message = "Product quantity cannot be empty.")
+    @NotNull(message = "Product quantity cannot be null.")
+    @Min(value = 1, message = "Product quantity must be at least 1.")
     @Column(nullable = false)
     private Integer quantity;
 }
