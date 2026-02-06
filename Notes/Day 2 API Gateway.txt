@@ -1,0 +1,81 @@
+✅ DAY 2 GOAL
+Today we will build:
+
+✅ API Gateway using Spring Cloud Gateway
+✅ Register it in Eureka Service Registry
+✅ Test that Gateway is visible in Eureka Dashboard
+
+=====================================================================
+
+🟦 Step 1: Create API Gateway Project
+
+Go to Spring Initializr and create a new Spring Boot project.
+
+Project Details:
+Group: com.shopsphere
+Artifact: api-gateway
+Name: api-gateway
+Java: 17
+Maven
+Packaging: Jar
+
+Dependencies (Must Add):
+✅ Spring Boot DevTools (optional but helpful)
+✅ Spring Cloud Gateway
+✅ Eureka Discovery Client
+
+Download and extract it inside.
+======================================================================
+
+🟦 Step 2: Configure application.properties
+
+Go to:
+
+api-gateway/src/main/resources/application.yml
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+======================================================================
+
+🟦 Step 3: Add Main Class Annotation (Optional but Recommended)
+
+Open your main class:
+
+ApiGatewayApplication.java
+
+No special annotation needed because Eureka client auto-registers.
+======================================================================
+
+🟦 Step 4: Run API Gateway
+🟦 Step 5: Verify in Eureka Dashboard
+
+Open Eureka:
+
+👉 http://localhost:8761
+
+Now you should see:
+
+✅ API-GATEWAY listed under Instances currently registered with Eureka
+
+🟦 Step 6: Test Gateway Running
+
+Open:
+
+👉 http://localhost:8080
+
+It may show "404" (that is fine).
+Important is: it should start without errors.
+
+
+
