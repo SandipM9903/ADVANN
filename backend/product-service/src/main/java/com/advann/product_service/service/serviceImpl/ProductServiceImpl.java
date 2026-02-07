@@ -1,7 +1,7 @@
 package com.advann.product_service.service.serviceImpl;
 
 import com.advann.product_service.entity.Product;
-import com.advann.product_service.exceptions.ProductNotFoundException;
+import com.advann.product_service.exceptions.ResourceNotFoundException;
 import com.advann.product_service.repository.ProductRepository;
 import com.advann.product_service.service.services.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product getProductById(Long id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new ProductNotFoundException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Product not found with id: " + id
                 ));
     }

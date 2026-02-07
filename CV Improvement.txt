@@ -22,3 +22,9 @@ Integrated Gateway with Eureka Service Discovery
 Configured dynamic routing using Load Balancer (lb://) mechanism
 
 Enabled scalable microservices communication architecture
+
+
+
+✔ Implemented Global Exception Handling using @ControllerAdvice and @ExceptionHandler
+✔ Designed standardized API response structure (ApiResponse<T>) for all REST APIs
+✔ Handled validation errors using @Valid and custom error messages
