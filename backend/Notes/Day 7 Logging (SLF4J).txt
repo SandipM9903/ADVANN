@@ -1,0 +1,90 @@
+✅ Logging (SLF4J)
+✅ Centralized Logs in Service Layer
+✅ Spring Boot Actuator (Health + Monitoring)
+✅ Actuator endpoints visible through Gateway
+✅ (Optional) Config Server later
+
+======================================================================================================
+
+When we open Actuator endpoint we should get:
+
+👉 http://localhost:8081/actuator/health
+
+Response:
+
+{
+  "status": "UP"
+}
+
+
+And logs should show meaningful info like:
+
+Product created successfully with id = 10
+
+
+========================================================================================================
+
+
+✅ Step 1: Add Spring Boot Actuator Dependency (Product Service)
+
+In product-service pom.xml, add:
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+
+=========================================================================================================
+
+✅ Step 2: Configure Actuator Endpoints
+
+In product-service application.yml, add:
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+==========================================================================================================
+
+✅ Step 3: Add Logging in Service Layer
+
+In ProductServiceImpl.java, add logger:
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+Then inside class:
+
+private static final Logger log = LoggerFactory.getLogger(ProductServiceImpl.class);
+
+===========================================================================================================
+
+✅ Step 4: Add Logs inside Methods
+
+Example:
+
+In addProduct()
+
+@Override
+    public ProductResponseDto addProduct(ProductRequestDto productRequestDto) {
+        Product product = modelMapper.map(productRequestDto, Product.class);
+        log.info("Adding new product : {}", productRequestDto.getName(), productRequestDto.getPrice(), productRequestDto.getQuantity());
+        Product saveProduct = productRepository.save(product);
+        log.info("Product created successfully with id: {}", saveProduct.getId());
+        return modelMapper.map(saveProduct, ProductResponseDto.class);
+    }
+
+============================================================================================================
+
+
+✅ Step 5: Test Actuator
+
+Run product service and check:
+
+👉 http://localhost:8081/actuator/health
+
+👉 http://localhost:8081/actuator/info

@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -17,13 +20,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProductServiceImpl.class);
+
     private final ProductRepository productRepository;
     private final ModelMapper modelMapper;
 
     @Override
     public ProductResponseDto addProduct(ProductRequestDto productRequestDto) {
         Product product = modelMapper.map(productRequestDto, Product.class);
+        log.info("Adding new product : {}", productRequestDto.getName(), productRequestDto.getPrice(), productRequestDto.getQuantity());
         Product saveProduct = productRepository.save(product);
+        log.info("Product created successfully with id: {}", saveProduct.getId());
         return modelMapper.map(saveProduct, ProductResponseDto.class);
     }
 
