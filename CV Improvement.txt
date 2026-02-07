@@ -1,0 +1,11 @@
+⭐ What you can now write in Resume (Real ATS Point)
+
+Product Service Microservice
+
+Developed Product microservice using Spring Boot, Spring Data JPA, PostgreSQL
+
+Implemented CRUD REST APIs with Swagger/OpenAPI documentation
+
+Added input validation using Jakarta Bean Validation
+
+Registered service with Eureka Service Registry for service discovery
