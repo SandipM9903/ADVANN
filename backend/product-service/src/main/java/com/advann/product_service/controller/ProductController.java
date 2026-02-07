@@ -1,6 +1,7 @@
 package com.advann.product_service.controller;
 
-import com.advann.product_service.entity.Product;
+import com.advann.product_service.dto.ProductRequestDto;
+import com.advann.product_service.dto.ProductResponseDto;
 import com.advann.product_service.payload.ApiResponse;
 import com.advann.product_service.service.services.ProductService;
 import jakarta.validation.Valid;
@@ -19,46 +20,59 @@ public class ProductController {
     private final ProductService productService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Product>> addProduct(@Valid @RequestBody Product product) {
-        Product saveProduct = productService.addProduct(product);
-        ApiResponse<Product> response = ApiResponse.<Product>builder()
+    public ResponseEntity<ApiResponse<ProductResponseDto>> addProduct(@Valid @RequestBody ProductRequestDto productRequestDto) {
+
+        ProductResponseDto savedProduct = productService.addProduct(productRequestDto);
+
+        ApiResponse<ProductResponseDto> response = ApiResponse.<ProductResponseDto>builder()
                 .success(true)
-                .message("Product Created Successfully")
-                .data(saveProduct)
+                .message("Product created successfully")
+                .data(savedProduct)
                 .build();
+
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Product>>> getAllProducts() {
-        List<Product> products = productService.getAllProducts();
-        ApiResponse<List<Product>> response = ApiResponse.<List<Product>>builder()
+    public ResponseEntity<ApiResponse<List<ProductResponseDto>>> getAllProducts() {
+
+        List<ProductResponseDto> products = productService.getAllProducts();
+
+        ApiResponse<List<ProductResponseDto>> response = ApiResponse.<List<ProductResponseDto>>builder()
                 .success(true)
-                .message("All Products Fetched Successfully")
+                .message("Products fetched successfully")
                 .data(products)
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Product>> getProductById(@PathVariable Long id) {
-        Product product = productService.getProductById(id);
-        ApiResponse<Product> response = ApiResponse.<Product>builder()
+    public ResponseEntity<ApiResponse<ProductResponseDto>> getProductById(@PathVariable Long id) {
+
+        ProductResponseDto product = productService.getProductById(id);
+
+        ApiResponse<ProductResponseDto> response = ApiResponse.<ProductResponseDto>builder()
                 .success(true)
-                .message("Product Fetched With id : " + id)
+                .message("Product fetched successfully")
                 .data(product)
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<Product>> updateProduct(@PathVariable Long id, @Valid @RequestBody Product product) {
-        Product updatedProduct = productService.updateProduct(id, product);
-        ApiResponse<Product> response = ApiResponse.<Product>builder()
+    public ResponseEntity<ApiResponse<ProductResponseDto>> updateProduct(@PathVariable Long id,
+                                                                         @Valid @RequestBody ProductRequestDto productRequestDto) {
+
+        ProductResponseDto updatedProduct = productService.updateProduct(id, productRequestDto);
+
+        ApiResponse<ProductResponseDto> response = ApiResponse.<ProductResponseDto>builder()
                 .success(true)
-                .message("Product with id : " + id + ", has been updated successfully")
-                .data(product)
+                .message("Product updated successfully")
+                .data(updatedProduct)
                 .build();
+
         return ResponseEntity.ok(response);
     }
 

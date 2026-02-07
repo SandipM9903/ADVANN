@@ -28,3 +28,7 @@ Enabled scalable microservices communication architecture
 ✔ Implemented Global Exception Handling using @ControllerAdvice and @ExceptionHandler
 ✔ Designed standardized API response structure (ApiResponse<T>) for all REST APIs
 ✔ Handled validation errors using @Valid and custom error messages
+
+
+✅ Implemented DTO-based API design using ModelMapper to map Entity and DTO.
+✅ Built standardized API response structure and global exception handling for better maintainability.
