@@ -9,3 +9,16 @@ Implemented CRUD REST APIs with Swagger/OpenAPI documentation
 Added input validation using Jakarta Bean Validation
 
 Registered service with Eureka Service Registry for service discovery
+
+
+✅ What you can add in Resume (ATS Friendly)
+
+API Gateway Implementation
+
+Implemented Spring Cloud Gateway for centralized routing
+
+Integrated Gateway with Eureka Service Discovery
+
+Configured dynamic routing using Load Balancer (lb://) mechanism
+
+Enabled scalable microservices communication architecture
