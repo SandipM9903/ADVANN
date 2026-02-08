@@ -34,6 +34,5 @@ Enabled scalable microservices communication architecture
 ✅ Built standardized API response structure and global exception handling for better maintainability.
 
 
-✅ Implemented structured logging using SLF4J + Logback for tracking service operations and debugging.
-
-
+✅ Implemented monitoring using Spring Boot Actuator and exposed microservice health/info endpoints through API Gateway.
+✅ Implemented service-layer logging using SLF4J for debugging and traceability.

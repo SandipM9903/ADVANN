@@ -1,77 +1,73 @@
-✅ Logging (SLF4J)
-✅ Centralized Logs in Service Layer
-✅ Spring Boot Actuator (Health + Monitoring)
-✅ Actuator endpoints visible through Gateway
-✅ (Optional) Config Server later
+Day 7 Notes: Logging + Actuator + Gateway Monitoring
+✅ Topics Covered
 
+✅ Logging using SLF4J (Service Layer Logging)
+✅ Spring Boot Actuator (Health + Info Monitoring)
+✅ Exposing Actuator endpoints through API Gateway
+✅ Adding application metadata in /actuator/info
 
 ✅ Why we use Spring Boot Actuator?
 
-Spring Boot Actuator is used to monitor and manage your application while it is running.
+Spring Boot Actuator is used to monitor and manage applications while running.
 
 It provides ready-made endpoints like:
 
-Health status (is app running or down?)
+Health status (/actuator/health)
 
-Application info
+Application info (/actuator/info)
 
-Metrics (memory, CPU, request count)
+Metrics (CPU, memory, request count)
 
 Beans loaded in Spring
 
 Environment properties
 
-Logs level change at runtime
+Change log levels at runtime
 
-======================================================================================================
-
-When we open Actuator endpoint we should get:
+✅ Actuator Endpoint Testing
+Health Endpoint
 
 👉 http://localhost:8081/actuator/health
 
-Response:
+Expected Response:
 
 {
   "status": "UP"
 }
+Info Endpoint
 
+👉 http://localhost:8081/actuator/info
 
-And logs should show meaningful info like:
+✅ Step 1: Add Actuator Dependency (Product Service)
 
-Product created successfully with id = 10
-
-
-========================================================================================================
-
-
-✅ Step 1: Add Spring Boot Actuator Dependency (Product Service)
-
-In product-service pom.xml, add:
+In product-service pom.xml add:
 
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-actuator</artifactId>
 </dependency>
+✅ Step 2: Configure Actuator Endpoints in application.yml
 
-=========================================================================================================
-
-✅ Step 2: Configure Actuator Endpoints
-
-In product-service application.yml, add:
+In product-service application.yml add:
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+
+
   endpoint:
     health:
       show-details: always
-==========================================================================================================
 
-✅ Step 3: Add Logging in Service Layer
+Now actuator endpoints will be enabled.
 
-In ProductServiceImpl.java, add logger:
+✅ Step 3: Logging in Service Layer (SLF4J)
+
+Logging is used to track execution flow and debug issues.
+
+In ProductServiceImpl.java, add imports:
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,40 +75,9 @@ import org.slf4j.LoggerFactory;
 Then inside class:
 
 private static final Logger log = LoggerFactory.getLogger(ProductServiceImpl.class);
+✅ Step 4: Add Logs inside Service Methods
 
-===========================================================================================================
-
-✅ Step 4: Add Logs inside Methods
-
-Example:
-
-In addProduct()
-
-@Override
-    public ProductResponseDto addProduct(ProductRequestDto productRequestDto) {
-        Product product = modelMapper.map(productRequestDto, Product.class);
-        log.info("Adding new product : {}", productRequestDto.getName(), productRequestDto.getPrice(), productRequestDto.getQuantity());
-        Product saveProduct = productRepository.save(product);
-        log.info("Product created successfully with id: {}", saveProduct.getId());
-        return modelMapper.map(saveProduct, ProductResponseDto.class);
-    }
-
-============================================================================================================
-
-
-✅ Step 5: Test Actuator
-
-Run product service and check:
-
-👉 http://localhost:8081/actuator/health
-
-👉 http://localhost:8081/actuator/info
-
-============================================================================================================
-
-Logging in Service Layer
-
-We will add logs in:
+Logging should be added in:
 
 ✅ addProduct
 ✅ getAllProducts
@@ -120,12 +85,14 @@ We will add logs in:
 ✅ updateProduct
 ✅ deleteProduct
 
-============================================================================================================
+Example logs:
 
-
-We will continue with ✅ Step 3 and ✅ Step 4
-
+log.info("Creating new product with name: {}", productRequestDto.getName());
+log.info("Product created successfully with id: {}", savedProduct.getId());
+log.warn("Product not found with id: {}", id);
+✅ Final ProductServiceImpl.java (Logging Code)
 package com.advann.product_service.service.serviceImpl;
+
 
 import com.advann.product_service.dto.ProductRequestDto;
 import com.advann.product_service.dto.ProductResponseDto;
@@ -137,53 +104,72 @@ import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 import java.util.List;
 import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
+
     private static final Logger log = LoggerFactory.getLogger(ProductServiceImpl.class);
+
 
     private final ProductRepository productRepository;
     private final ModelMapper modelMapper;
 
+
     @Override
     public ProductResponseDto addProduct(ProductRequestDto productRequestDto) {
 
+
         log.info("Creating new product with name: {}", productRequestDto.getName());
+
 
         Product product = modelMapper.map(productRequestDto, Product.class);
 
+
         Product savedProduct = productRepository.save(product);
 
+
         log.info("Product created successfully with id: {}", savedProduct.getId());
+
 
         return modelMapper.map(savedProduct, ProductResponseDto.class);
     }
 
+
     @Override
     public List<ProductResponseDto> getAllProducts() {
 
+
         log.info("Fetching all products");
+
 
         List<Product> products = productRepository.findAll();
 
+
         log.info("Total products found: {}", products.size());
+
 
         return products.stream()
                 .map(product -> modelMapper.map(product, ProductResponseDto.class))
                 .collect(Collectors.toList());
     }
 
+
     @Override
     public ProductResponseDto getProductById(Long id) {
 
+
         log.info("Fetching product by id: {}", id);
+
 
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> {
@@ -191,15 +177,20 @@ public class ProductServiceImpl implements ProductService {
                     return new ResourceNotFoundException("Product not found with id: " + id);
                 });
 
+
         log.info("Product found with id: {}", id);
+
 
         return modelMapper.map(product, ProductResponseDto.class);
     }
 
+
     @Override
     public ProductResponseDto updateProduct(Long id, ProductRequestDto productRequestDto) {
 
+
         log.info("Updating product with id: {}", id);
+
 
         Product existing = productRepository.findById(id)
                 .orElseThrow(() -> {
@@ -207,44 +198,26 @@ public class ProductServiceImpl implements ProductService {
                     return new ResourceNotFoundException("Product not found with id: " + id);
                 });
 
+
         existing.setName(productRequestDto.getName());
         existing.setPrice(productRequestDto.getPrice());
         existing.setQuantity(productRequestDto.getQuantity());
 
+
         Product updated = productRepository.save(existing);
+✅ Step 5: Enable /actuator/info output (Important Fix)
 
-        log.info("Product updated successfully with id: {}", updated.getId());
+By default, /actuator/info returns {} unless we configure info properties.
 
-        return modelMapper.map(updated, ProductResponseDto.class);
-    }
+So add this in application.yml:
 
-    @Override
-    public void deleteProduct(Long id) {
+management:
+  info:
+    env:
+      enabled: true
+✅ Step 6: Add Application Info Metadata
 
-        log.info("Deleting product with id: {}", id);
-
-        Product existing = productRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.warn("Cannot delete. Product not found with id: {}", id);
-                    return new ResourceNotFoundException("Product not found with id: " + id);
-                });
-
-        productRepository.delete(existing);
-
-        log.info("Product deleted successfully with id: {}", id);
-    }
-}
-
-============================================================================================================
-
-To enable this http://localhost:8080/product-service/actuator/info
-
-in application.yml we have to write
-
-
-info:
-  env:
-    enabled: true
+In application.yml:
 
 info:
   app:
@@ -252,30 +225,35 @@ info:
     description: Product Microservice for Advann
     version: 1.0.0
 
+Now /actuator/info will show application details.
 
-Complete code is :::::
-
+✅ Final application.yml (Complete Correct Version)
 server:
   port: 8081
+
 
 spring:
   application:
     name: product-service
+
 
   datasource:
     url: jdbc:postgresql://localhost:5432/advann_db
     username: postgres
     password: root
 
+
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
 
+
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+
 
 management:
   endpoints:
@@ -283,13 +261,16 @@ management:
       exposure:
         include: health,info
 
+
   endpoint:
     health:
       show-details: always
 
+
   info:
     env:
       enabled: true
+
 
 info:
   app:
@@ -297,9 +278,19 @@ info:
     description: Product Microservice for Advann
     version: 1.0.0
 
+
 logging:
   level:
     com.advann.product_service: INFO
+✅ Gateway Monitoring (What We Implemented)
+Direct Service Access
 
+👉 http://localhost:8081/actuator/health
 
+Gateway Access (Recommended in real microservices)
 
+👉 http://localhost:8080/product-service/actuator/health
+
+👉 http://localhost:8080/product-service/actuator/info
+
+This is called Gateway Monitoring because the gateway becomes the single entry point for checking health of all microservices.
