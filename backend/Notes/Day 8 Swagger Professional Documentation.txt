@@ -1,0 +1,195 @@
+Right now Swagger is showing APIs, but in product companies we need proper documentation like:
+
+API summary
+
+API description
+
+response codes (200, 201, 400, 404, 500)
+
+example messages
+
+This looks very strong in interview.
+
+=================================================================================================================
+
+✅ Step 1: Add OpenAPI Info in application.yml
+
+In product-service application.yml add:
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+==================================================================================================================
+
+✅ Step 2: Create Swagger Config Class
+
+📌 Package: com.advann.product_service.config
+
+Create file: SwaggerConfig.java
+
+package com.advann.product_service.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info()
+                        .title("Product Service API")
+                        .version("1.0.0")
+                        .description("Product Microservice APIs for Advann Project"));
+    }
+}
+
+======================================================================================================================
+
+✅ Step 3: Add Swagger Annotations in ProductController
+
+Now update your controller by adding:
+
+Add imports:
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+
+======================================================================================================================
+
+✅ Full Updated ProductController with Swagger Docs
+
+package com.advann.product_service.controller;
+
+import com.advann.product_service.dto.ProductRequestDto;
+import com.advann.product_service.dto.ProductResponseDto;
+import com.advann.product_service.payload.ApiResponse;
+import com.advann.product_service.service.services.ProductService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/products")
+@RequiredArgsConstructor
+public class ProductController {
+
+    private final ProductService productService;
+
+    @Operation(summary = "Create Product", description = "Creates a new product and saves it into database")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Product created successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation failed"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @PostMapping
+    public ResponseEntity<ApiResponse<ProductResponseDto>> addProduct(
+            @Valid @RequestBody ProductRequestDto productRequestDto
+    ) {
+
+        ProductResponseDto savedProduct = productService.addProduct(productRequestDto);
+
+        ApiResponse<ProductResponseDto> response = ApiResponse.<ProductResponseDto>builder()
+                .success(true)
+                .message("Product created successfully")
+                .data(savedProduct)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    @Operation(summary = "Get All Products", description = "Fetch all products from database")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Products fetched successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<ProductResponseDto>>> getAllProducts() {
+
+        List<ProductResponseDto> products = productService.getAllProducts();
+
+        ApiResponse<List<ProductResponseDto>> response = ApiResponse.<List<ProductResponseDto>>builder()
+                .success(true)
+                .message("Products fetched successfully")
+                .data(products)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Get Product By Id", description = "Fetch a product using product id")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Product fetched successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Product not found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<ProductResponseDto>> getProductById(@PathVariable Long id) {
+
+        ProductResponseDto product = productService.getProductById(id);
+
+        ApiResponse<ProductResponseDto> response = ApiResponse.<ProductResponseDto>builder()
+                .success(true)
+                .message("Product fetched successfully")
+                .data(product)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Update Product", description = "Update an existing product using id")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Product updated successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation failed"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Product not found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<ProductResponseDto>> updateProduct(
+            @PathVariable Long id,
+            @Valid @RequestBody ProductRequestDto productRequestDto
+    ) {
+
+        ProductResponseDto updatedProduct = productService.updateProduct(id, productRequestDto);
+
+        ApiResponse<ProductResponseDto> response = ApiResponse.<ProductResponseDto>builder()
+                .success(true)
+                .message("Product updated successfully")
+                .data(updatedProduct)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Delete Product", description = "Delete product using id")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Product deleted successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Product not found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<String>> deleteProduct(@PathVariable Long id) {
+
+        productService.deleteProduct(id);
+
+        ApiResponse<String> response = ApiResponse.<String>builder()
+                .success(true)
+                .message("Product deleted successfully")
+                .data("Product deleted with id : " + id)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+}

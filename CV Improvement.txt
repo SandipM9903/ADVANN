@@ -36,3 +36,5 @@ Enabled scalable microservices communication architecture
 
 ✅ Implemented monitoring using Spring Boot Actuator and exposed microservice health/info endpoints through API Gateway.
 ✅ Implemented service-layer logging using SLF4J for debugging and traceability.
+
+✅ Implemented API documentation using Swagger OpenAPI 3 annotations with proper response codes and descriptions.
