@@ -32,3 +32,8 @@ Enabled scalable microservices communication architecture
 
 ✅ Implemented DTO-based API design using ModelMapper to map Entity and DTO.
 ✅ Built standardized API response structure and global exception handling for better maintainability.
+
+
+✅ Implemented structured logging using SLF4J + Logback for tracking service operations and debugging.
+
+
