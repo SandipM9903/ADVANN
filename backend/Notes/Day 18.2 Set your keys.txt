@@ -6,3 +6,7 @@ setx AWS_SECRET_KEY "YOUR_SECRET_ACCESS_KEY"
 
 echo $env:AWS_ACCESS_KEY
 echo $env:AWS_SECRET_KEY
+
+========================================================================================================
+
+Keep in mind that you have to do this because in application.yml file you cannot write directly ACCESS KEY and SECRET KEY for that you have to do this otherwise while pushing code in githud or any other git platform it will not allow you to upload your code. For that you have to set in you system environment you can achieve that by the above comment.

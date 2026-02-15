@@ -1,0 +1,275 @@
+✅ Step 1: Create SubCategory Entity
+
+📌 SubCategory.java
+
+package com.advann.product_service.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "sub_categories")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class SubCategory {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
+}
+✅ Step 2: Create SubCategory Repository
+
+📌 SubCategoryRepository.java
+
+package com.advann.product_service.repository;
+
+import com.advann.product_service.entity.SubCategory;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface SubCategoryRepository extends JpaRepository<SubCategory, Long> {
+
+    List<SubCategory> findByCategoryId(Long categoryId);
+
+    boolean existsByNameIgnoreCaseAndCategoryId(String name, Long categoryId);
+}
+✅ Step 3: DTOs
+SubCategoryRequestDto
+package com.advann.product_service.dto.subcategory;
+
+import lombok.Data;
+
+@Data
+public class SubCategoryRequestDto {
+    private String name;
+    private Long categoryId;
+}
+SubCategoryResponseDto
+package com.advann.product_service.dto.subcategory;
+
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class SubCategoryResponseDto {
+    private Long id;
+    private String name;
+    private Long categoryId;
+    private String categoryName;
+}
+✅ Step 4: SubCategory Service Interface
+
+📌 SubCategoryService.java
+
+package com.advann.product_service.service;
+
+import com.advann.product_service.dto.subcategory.SubCategoryRequestDto;
+import com.advann.product_service.dto.subcategory.SubCategoryResponseDto;
+
+import java.util.List;
+
+public interface SubCategoryService {
+
+    SubCategoryResponseDto createSubCategory(SubCategoryRequestDto dto);
+
+    List<SubCategoryResponseDto> getAllSubCategories();
+
+    List<SubCategoryResponseDto> getSubCategoriesByCategory(Long categoryId);
+
+    SubCategoryResponseDto getSubCategoryById(Long id);
+
+    void deleteSubCategory(Long id);
+}
+✅ Step 5: SubCategory Service Implementation
+
+📌 SubCategoryServiceImpl.java
+
+package com.advann.product_service.service.impl;
+
+import com.advann.product_service.dto.subcategory.SubCategoryRequestDto;
+import com.advann.product_service.dto.subcategory.SubCategoryResponseDto;
+import com.advann.product_service.entity.Category;
+import com.advann.product_service.entity.SubCategory;
+import com.advann.product_service.repository.CategoryRepository;
+import com.advann.product_service.repository.SubCategoryRepository;
+import com.advann.product_service.service.SubCategoryService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class SubCategoryServiceImpl implements SubCategoryService {
+
+    private final SubCategoryRepository subCategoryRepository;
+    private final CategoryRepository categoryRepository;
+
+    @Override
+    public SubCategoryResponseDto createSubCategory(SubCategoryRequestDto dto) {
+
+        Category category = categoryRepository.findById(dto.getCategoryId())
+                .orElseThrow(() -> new RuntimeException("Category not found with id: " + dto.getCategoryId()));
+
+        if (subCategoryRepository.existsByNameIgnoreCaseAndCategoryId(dto.getName(), dto.getCategoryId())) {
+            throw new RuntimeException("SubCategory already exists in this category");
+        }
+
+        SubCategory subCategory = SubCategory.builder()
+                .name(dto.getName())
+                .category(category)
+                .build();
+
+        SubCategory saved = subCategoryRepository.save(subCategory);
+
+        return SubCategoryResponseDto.builder()
+                .id(saved.getId())
+                .name(saved.getName())
+                .categoryId(category.getId())
+                .categoryName(category.getName())
+                .build();
+    }
+
+    @Override
+    public List<SubCategoryResponseDto> getAllSubCategories() {
+
+        return subCategoryRepository.findAll()
+                .stream()
+                .map(sc -> SubCategoryResponseDto.builder()
+                        .id(sc.getId())
+                        .name(sc.getName())
+                        .categoryId(sc.getCategory().getId())
+                        .categoryName(sc.getCategory().getName())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public List<SubCategoryResponseDto> getSubCategoriesByCategory(Long categoryId) {
+
+        return subCategoryRepository.findByCategoryId(categoryId)
+                .stream()
+                .map(sc -> SubCategoryResponseDto.builder()
+                        .id(sc.getId())
+                        .name(sc.getName())
+                        .categoryId(sc.getCategory().getId())
+                        .categoryName(sc.getCategory().getName())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public SubCategoryResponseDto getSubCategoryById(Long id) {
+
+        SubCategory subCategory = subCategoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("SubCategory not found with id: " + id));
+
+        return SubCategoryResponseDto.builder()
+                .id(subCategory.getId())
+                .name(subCategory.getName())
+                .categoryId(subCategory.getCategory().getId())
+                .categoryName(subCategory.getCategory().getName())
+                .build();
+    }
+
+    @Override
+    public void deleteSubCategory(Long id) {
+
+        SubCategory subCategory = subCategoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("SubCategory not found with id: " + id));
+
+        subCategoryRepository.delete(subCategory);
+    }
+}
+✅ Step 6: SubCategory Controller
+
+📌 SubCategoryController.java
+
+package com.advann.product_service.controller;
+
+import com.advann.product_service.dto.subcategory.SubCategoryRequestDto;
+import com.advann.product_service.dto.subcategory.SubCategoryResponseDto;
+import com.advann.product_service.service.SubCategoryService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/subcategories")
+@RequiredArgsConstructor
+public class SubCategoryController {
+
+    private final SubCategoryService subCategoryService;
+
+    @PostMapping
+    public ResponseEntity<SubCategoryResponseDto> createSubCategory(@RequestBody SubCategoryRequestDto dto) {
+        return ResponseEntity.ok(subCategoryService.createSubCategory(dto));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<SubCategoryResponseDto>> getAllSubCategories() {
+        return ResponseEntity.ok(subCategoryService.getAllSubCategories());
+    }
+
+    @GetMapping("/category/{categoryId}")
+    public ResponseEntity<List<SubCategoryResponseDto>> getSubCategoriesByCategory(@PathVariable Long categoryId) {
+        return ResponseEntity.ok(subCategoryService.getSubCategoriesByCategory(categoryId));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<SubCategoryResponseDto> getSubCategoryById(@PathVariable Long id) {
+        return ResponseEntity.ok(subCategoryService.getSubCategoryById(id));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteSubCategory(@PathVariable Long id) {
+        subCategoryService.deleteSubCategory(id);
+        return ResponseEntity.ok("SubCategory deleted successfully");
+    }
+}
+✅ API Endpoints Summary (Postman)
+Create SubCategory
+
+POST
+
+http://localhost:8081/api/subcategories
+
+Body:
+
+{
+  "name": "iPhone Covers",
+  "categoryId": 1
+}
+Get All SubCategories
+
+GET
+
+http://localhost:8081/api/subcategories
+Get SubCategories by Category
+
+GET
+
+http://localhost:8081/api/subcategories/category/1
+Get SubCategory by Id
+
+GET
+
+http://localhost:8081/api/subcategories/1
+Delete SubCategory
+
+DELETE
+
+http://localhost:8081/api/subcategories/1
