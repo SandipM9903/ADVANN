@@ -1,0 +1,365 @@
+🚀 Add Multiple Product Images (Gallery Feature)
+
+Because in real ecommerce, one product has:
+
+front image
+
+back image
+
+side image
+
+zoom image
+
+So we can implement:
+
+APIs:
+
+✅ Upload multiple images
+POST /api/products/{productId}/upload-images
+
+✅ Get all images of a product
+GET /api/products/{productId}/images
+
+✅ Delete one image
+DELETE /api/products/images/{imageId}
+
+Requires:
+
+New table: product_images
+
+Entity relationship: One Product → Many Images
+
+==================================================================================================================================================
+
+Perfect Sandip 🔥 now we’ll implement Product Gallery (Multiple Images) like Amazon/Flipkart style.
+
+We will do it step-by-step with clean structure.
+
+✅ Step 1: Create New Table/Entity ProductImage
+
+📌 Create entity:
+
+com.advann.product_service.entity.ProductImage
+
+package com.advann.product_service.entity;
+
+
+import jakarta.persistence.*;
+import lombok.*;
+
+
+@Entity
+@Table(name = "product_images")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ProductImage {
+
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+
+    private String imagePath;
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+}
+✅ Step 2: Update Product Entity (One Product → Many Images)
+
+Inside your Product entity add:
+
+@OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+private List<ProductImage> images = new ArrayList<>();
+
+Also import:
+
+import java.util.ArrayList;
+import java.util.List;
+✅ Step 3: Create Repository for ProductImage
+
+📌 Create:
+
+com.advann.product_service.repository.ProductImageRepository
+
+package com.advann.product_service.repository;
+
+
+import com.advann.product_service.entity.ProductImage;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+
+import java.util.List;
+
+
+public interface ProductImageRepository extends JpaRepository<ProductImage, Long> {
+
+
+    List<ProductImage> findByProductId(Long productId);
+}
+✅ Step 4: Create DTO for ProductImage Response
+
+📌 Create:
+
+com.advann.product_service.payload.ProductImageResponseDto
+
+package com.advann.product_service.payload;
+
+
+import lombok.*;
+
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+public class ProductImageResponseDto {
+
+
+    private Long id;
+    private String imagePath;
+    private String imageUrl;
+}
+✅ Step 5: Add Upload Multiple Images API
+Controller
+@PostMapping("/{productId}/upload-images")
+public ResponseEntity<ApiResponse<List<ProductImageResponseDto>>> uploadProductImages(
+        @PathVariable Long productId,
+        @RequestParam("files") List<MultipartFile> files
+) {
+    List<ProductImageResponseDto> response = productService.uploadProductImages(productId, files);
+
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Images uploaded successfully", response));
+}
+✅ Step 6: Add Service Method
+
+In interface:
+
+List<ProductImageResponseDto> uploadProductImages(Long productId, List<MultipartFile> files);
+✅ Step 7: Implement in ServiceImpl
+@Override
+    Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+
+    if (files == null || files.isEmpty()) {
+        throw new InvalidFileException("Please upload at least one image.");
+    }
+
+
+    String uploadDir = System.getProperty("user.dir") + "/uploads/products/gallery/";
+    File directory = new File(uploadDir);
+
+
+    if (!directory.exists()) {
+        directory.mkdirs();
+    }
+
+
+    List<ProductImageResponseDto> responseList = new ArrayList<>();
+
+
+    for (MultipartFile file : files) {
+
+
+        validateImageFile(file);
+
+
+        String originalFileName = file.getOriginalFilename();
+        if (originalFileName == null || originalFileName.isBlank()) {
+            throw new InvalidFileException("Invalid file name.");
+        }
+
+
+        originalFileName = originalFileName.replaceAll("\\s+", "_");
+
+
+        String extension = "";
+        int lastDotIndex = originalFileName.lastIndexOf(".");
+        if (lastDotIndex > 0) {
+            extension = originalFileName.substring(lastDotIndex);
+        }
+
+
+        String fileName = System.currentTimeMillis() + "_" + productId + extension;
+
+
+        Path filePath = Paths.get(uploadDir).resolve(fileName);
+
+
+        try {
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new InvalidFileException("Failed to upload image.");
+        }
+
+
+        String imagePath = "/uploads/products/gallery/" + fileName;
+
+
+        ProductImage productImage = ProductImage.builder()
+                .imagePath(imagePath)
+                .product(product)
+                .build();
+
+
+        ProductImage savedImage = productImageRepository.save(productImage);
+
+
+        responseList.add(ProductImageResponseDto.builder()
+                .id(savedImage.getId())
+                .imagePath(savedImage.getImagePath())
+                .imageUrl(buildImageUrl(savedImage.getImagePath()))
+                .build());
+    }
+
+
+    return responseList;
+}
+✅ Step 8: Inject ProductImageRepository
+
+At top of service:
+
+@Autowired
+private ProductImageRepository productImageRepository;
+
+(or constructor injection if you use that)
+
+✅ Step 9: Test in Postman
+POST
+http://localhost:8081/api/products/2/upload-images
+
+form-data:
+
+key	type	value
+files	File	img1.jpg
+files	File	img2.png
+files	File	img3.jpg
+✅ Output Example
+{
+  "success": true,
+  "message": "Images uploaded successfully",
+  "data": [
+    {
+      "id": 1,
+      "imagePath": "/uploads/products/gallery/17708_2.jpg",
+      "imageUrl": "http://localhost:8081/uploads/products/gallery/17708_2.jpg"
+    }
+  ]
+}
+
+==============================================================================================================================
+
+✅ Next step: Implement remaining 2 important APIs
+1️⃣ GET all images of a product
+
+API:
+
+GET /api/products/{productId}/images
+
+Returns list of all gallery images.
+
+2️⃣ DELETE one image by imageId
+
+API:
+
+DELETE /api/products/images/{imageId}
+
+Deletes file + deletes DB row.
+
+✅ 1) GET Product Images API
+Controller
+@GetMapping("/{productId}/images")
+public ResponseEntity<ApiResponse<List<ProductImageResponseDto>>> getProductImages(
+        @PathVariable Long productId
+) {
+    List<ProductImageResponseDto> response = productService.getProductImages(productId);
+
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Product images fetched successfully", response));
+}
+Service Interface
+List<ProductImageResponseDto> getProductImages(Long productId);
+Service Implementation
+@Override
+public List<ProductImageResponseDto> getProductImages(Long productId) {
+
+
+    Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+
+    List<ProductImage> images = productImageRepository.findByProductId(productId);
+
+
+    return images.stream()
+            .map(img -> ProductImageResponseDto.builder()
+                    .id(img.getId())
+                    .imagePath(img.getImagePath())
+                    .imageUrl(buildImageUrl(img.getImagePath()))
+                    .build())
+            .toList();
+}
+✅ 2) DELETE Image by imageId API
+Controller
+@DeleteMapping("/images/{imageId}")
+public ResponseEntity<ApiResponse<Object>> deleteProductImageById(
+        @PathVariable Long imageId
+) {
+    productService.deleteProductImageById(imageId);
+
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Image deleted successfully", null));
+}
+Service Interface
+void deleteProductImageById(Long imageId);
+Service Implementation
+@Override
+public void deleteProductImageById(Long imageId) {
+
+
+    ProductImage productImage = productImageRepository.findById(imageId)
+            .orElseThrow(() -> new ResourceNotFoundException("Image not found with id: " + imageId));
+
+
+    String fullPath = System.getProperty("user.dir") + productImage.getImagePath().replace("/", File.separator);
+
+
+    try {
+        boolean deleted = Files.deleteIfExists(Paths.get(fullPath));
+
+
+        if (deleted) {
+            log.info("Gallery image deleted: {}", fullPath);
+        } else {
+            log.warn("Gallery image not found in folder: {}", fullPath);
+        }
+
+
+    } catch (IOException e) {
+        log.error("Failed to delete gallery image file: {}", fullPath, e);
+        throw new InvalidFileException("Failed to delete image from server.");
+    }
+
+
+    productImageRepository.delete(productImage);
+
+
+    log.info("Gallery image record deleted from DB with id: {}", imageId);
+}
+✅ Required Imports
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+🔥 Now your gallery feature is COMPLETE
+
+✅ upload multiple
+✅ list all images
+✅ delete one image

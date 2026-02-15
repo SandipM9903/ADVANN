@@ -1,0 +1,74 @@
+⭐ What you can now write in Resume (Real ATS Point)
+
+Product Service Microservice
+
+Developed Product microservice using Spring Boot, Spring Data JPA, PostgreSQL
+
+Implemented CRUD REST APIs with Swagger/OpenAPI documentation
+
+Added input validation using Jakarta Bean Validation
+
+Registered service with Eureka Service Registry for service discovery
+
+
+✅ What you can add in Resume (ATS Friendly)
+
+API Gateway Implementation
+
+Implemented Spring Cloud Gateway for centralized routing
+
+Integrated Gateway with Eureka Service Discovery
+
+Configured dynamic routing using Load Balancer (lb://) mechanism
+
+Enabled scalable microservices communication architecture
+
+
+
+✔ Implemented Global Exception Handling using @ControllerAdvice and @ExceptionHandler
+✔ Designed standardized API response structure (ApiResponse<T>) for all REST APIs
+✔ Handled validation errors using @Valid and custom error messages
+
+
+✅ Implemented DTO-based API design using ModelMapper to map Entity and DTO.
+✅ Built standardized API response structure and global exception handling for better maintainability.
+
+
+✅ Implemented monitoring using Spring Boot Actuator and exposed microservice health/info endpoints through API Gateway.
+✅ Implemented service-layer logging using SLF4J for debugging and traceability.
+
+✅ Implemented API documentation using Swagger OpenAPI 3 annotations with proper response codes and descriptions.
+
+
+✅ JWT Authentication
+✅ Role Based Authorization (RBAC)
+✅ Spring Security Filter Chain
+✅ Custom UserDetailsService
+✅ Stateless Authentication
+
+
+"Enterprise JWT Security Implementation (Access/Refresh Tokens, Logout, Token Blacklisting)"
+
+Product Service (Microservice)
+
+Developed Product & Category module using Spring Boot + PostgreSQL
+
+Implemented Product listing API with Pagination, Sorting, Search & Category Filtering
+
+Designed REST APIs with DTO mapping, validation, and global exception handling
+
+Implemented standardized API response structure for all endpoints
+
+✅ here are strong CV lines only for AWS S3 bucket implementation:
+
+Integrated AWS S3 for storing product images in cloud instead of local server storage.
+
+Implemented S3-based image upload service using AWS SDK with secure access key configuration.
+
+Uploaded and managed full-size and thumbnail product images in structured S3 folders (products/gallery/full, products/gallery/thumb).
+
+Stored S3 object URLs in database for fast retrieval and frontend rendering.
+
+Implemented image compression and resizing before uploading to S3 to reduce storage and bandwidth usage.
+
+Ensured production-ready handling of file uploads with validations (size/type) and proper exception handling.

@@ -1,0 +1,104 @@
+✅ Only Gateway port 8080 is used
+✅ Swagger of all microservices will open via gateway
+✅ Same like real production microservice architecture
+
+Now we will do Swagger through API Gateway step by step.
+
+==============================================================================
+
+✅ Step 1: Add Routes in API Gateway (VERY IMPORTANT)
+
+Right now you only enabled discovery locator, but Swagger works best when we explicitly define routes.
+
+Update your api-gateway application.yml like this:
+
+server:
+  port: 8080
+
+
+spring:
+  application:
+    name: api-gateway
+
+
+  cloud:
+    gateway:
+      routes:
+        - id: product-service
+          uri: lb://product-service
+          predicates:
+            - Path=/product-service/**
+          filters:
+            - StripPrefix=1
+
+
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/user-service/**
+          filters:
+            - StripPrefix=1
+
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+✅ Now gateway will forward all requests properly.
+
+===========================================================================================================
+
+✅ Step 2: Product Service Swagger config
+
+In product-service application.yml, add this:
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+
+
+  swagger-ui:
+    path: /swagger-ui.html
+    config-url: /product-service/v3/api-docs/swagger-config
+    url: /product-service/v3/api-docs
+✅ Step 3: User Service Swagger config
+
+In user-service application.yml, add this:
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+
+
+  swagger-ui:
+    path: /swagger-ui.html
+    config-url: /user-service/v3/api-docs/swagger-config
+    url: /user-service/v3/api-docs
+
+=============================================================================================================
+
+✅ Step 4: Restart all services
+
+Restart in this order:
+
+Eureka Server
+
+Product Service
+
+User Service
+
+API Gateway
+
+==============================================================================================================
+
+✅ Step 5: Test URLs
+Product Swagger via Gateway
+
+👉 http://localhost:8080/product-service/swagger-ui/index.html
+
+User Swagger via Gateway
+
+👉 http://localhost:8080/user-service/swagger-ui/index.html

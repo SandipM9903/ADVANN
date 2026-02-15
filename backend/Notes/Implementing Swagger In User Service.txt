@@ -1,0 +1,81 @@
+✅ Step 1: Add Swagger Dependency in pom.xml
+
+Add this dependency:
+
+<dependency>
+    <groupId>org.springdoc</groupId>
+    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+    <version>2.5.0</version>
+</dependency>
+======================================================================================
+
+
+✅ Step 2: Add Swagger Configuration (Optional but Professional)
+
+Create file:
+
+📌 config/SwaggerConfig.java
+
+package com.advann.user_service.config;
+
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+
+@Configuration
+public class SwaggerConfig {
+
+
+    @Bean
+    public OpenAPI userServiceOpenAPI() {
+        return new OpenAPI()
+                .info(new Info()
+                        .title("User Service API")
+                        .description("User Service Microservice for ShopSphere Project")
+                        .version("1.0.0"));
+    }
+}
+
+=========================================================================================
+
+As we have added spring security so we have to add this function SecurityConfig for testing purpose
+
+@Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+        http
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
+                        .anyRequest().permitAll()
+                )
+                .httpBasic(Customizer.withDefaults());
+
+        return http.build();
+    }
+
+=========================================================================================
+
+Now you can check in 
+
+http://localhost:8083/swagger-ui/index.html
+
+=========================================================================================
+
+=========================================================================================
+
+✅ Step 3: Add this application.yml
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+

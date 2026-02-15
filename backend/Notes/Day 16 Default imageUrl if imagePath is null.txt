@@ -1,0 +1,50 @@
+Perfect Sandip ✅ this is a very professional feature.
+
+Now we will ensure that if product has no image, API will return a default image URL instead of null.
+
+✅ Step 1: Put a Default Image in uploads folder
+
+Create this folder if not exists:
+
+uploads/products/
+
+Now put one image inside it:
+
+📌 Example file name:
+
+default.png
+
+So path becomes:
+
+uploads/products/default.png
+✅ Step 2: Update buildImageUrl() method
+
+Update your method like this:
+
+private String buildImageUrl(String imagePath) {
+
+
+    String baseUrl = "http://localhost:8081";
+
+
+    if (imagePath == null || imagePath.isBlank()) {
+        return baseUrl + "/uploads/products/default.png";
+    }
+
+
+    return baseUrl + imagePath;
+}
+✅ Step 3: Update Mapping in getAllProducts()
+
+Already you did:
+
+.imageUrl(buildImageUrl(product.getImagePath()))
+
+Now if imagePath is null, it will automatically return default image URL.
+
+✅ Output Example
+
+If product has no image:
+
+"imagePath": null,
+"imageUrl": "http://localhost:8081/uploads/products/default.png"

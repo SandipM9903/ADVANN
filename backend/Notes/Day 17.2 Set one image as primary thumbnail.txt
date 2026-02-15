@@ -1,0 +1,400 @@
+Awesome Sandip 🔥 this is exactly how real ecommerce works.
+
+Now we will implement:
+
+✅ Feature: Set Primary Product Image (Thumbnail)
+Goal
+
+When you call:
+
+PUT /api/products/images/{imageId}/set-primary
+
+It will:
+
+✅ make this image the main thumbnail (product.imagePath)
+✅ keep gallery images as it is
+✅ return updated product details
+
+✅ Step 1: Add API in Controller
+@PutMapping("/images/{imageId}/set-primary")
+public ResponseEntity<ApiResponse<ProductResponseDto>> setPrimaryImage(
+        @PathVariable Long imageId
+) {
+    ProductResponseDto response = productService.setPrimaryProductImage(imageId);
+
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Primary image updated successfully", response));
+}
+✅ Step 2: Add Method in Service Interface
+ProductResponseDto setPrimaryProductImage(Long imageId);
+✅ Step 3: Implement in ServiceImpl
+@Override
+public ProductResponseDto setPrimaryProductImage(Long imageId) {
+
+
+    ProductImage productImage = productImageRepository.findById(imageId)
+            .orElseThrow(() -> new ResourceNotFoundException("Image not found with id: " + imageId));
+
+
+    Product product = productImage.getProduct();
+
+
+    // set main image path
+    product.setImagePath(productImage.getImagePath());
+
+
+    Product savedProduct = productRepository.save(product);
+
+
+    ProductResponseDto dto = modelMapper.map(savedProduct, ProductResponseDto.class);
+    dto.setImageUrl(buildImageUrl(savedProduct.getImagePath()));
+
+
+    return dto;
+}
+✅ Step 4: Test in Postman
+Call:
+PUT http://localhost:8081/api/products/images/5/set-primary
+✅ Expected Response
+{
+  "success": true,
+  "message": "Primary image updated successfully",
+  "data": {
+    "id": 3,
+    "name": "iPhone 16 Cover",
+    "imagePath": "/uploads/products/gallery/17708_3.jpg",
+    "imageUrl": "http://localhost:8081/uploads/products/gallery/17708_3.jpg"
+  }
+}
+
+============================================================================================================================
+
+✅ Requirement
+
+If you delete a gallery image, and that image is currently set as:
+
+product.imagePath
+
+then we must:
+
+✅ delete that gallery image
+✅ remove it from DB
+✅ set product.imagePath = null (or default)
+✅ so frontend does not break
+
+✅ Update your deleteProductImageById() method
+
+Replace your existing method with this upgraded version:
+
+@Override
+public void deleteProductImageById(Long imageId) {
+
+
+    ProductImage productImage = productImageRepository.findById(imageId)
+            .orElseThrow(() -> new ResourceNotFoundException("Image not found with id: " + imageId));
+
+
+    Product product = productImage.getProduct();
+
+
+    // check if this image is currently primary image
+    boolean isPrimary = product.getImagePath() != null &&
+            product.getImagePath().equals(productImage.getImagePath());
+
+
+    String fullPath = System.getProperty("user.dir") + productImage.getImagePath().replace("/", File.separator);
+
+
+    try {
+        boolean deleted = Files.deleteIfExists(Paths.get(fullPath));
+
+
+        if (deleted) {
+            log.info("Gallery image deleted from folder: {}", fullPath);
+        } else {
+            log.warn("Gallery image file not found, skipping delete: {}", fullPath);
+        }
+
+
+    } catch (IOException e) {
+        log.error("Failed to delete gallery image file: {}", fullPath, e);
+        throw new InvalidFileException("Failed to delete image from server.");
+    }
+
+
+    // delete from DB
+    productImageRepository.delete(productImage);
+    log.info("Gallery image deleted from DB with id: {}", imageId);
+
+
+    // if deleted image was primary, reset product imagePath
+    if (isPrimary) {
+        product.setImagePath(null);
+        productRepository.save(product);
+
+
+        log.info("Primary image was deleted, product imagePath reset for product id: {}", product.getId());
+    }
+}
+✅ What will happen now?
+Case 1: Deleted image is NOT primary
+
+✔ only that image deleted
+
+Case 2: Deleted image IS primary
+
+✔ image deleted
+✔ product.imagePath becomes null
+✔ default image will be returned automatically (from buildImageUrl)
+
+==========================================================================================================================================
+
+✅ Requirement
+
+If primary image is deleted:
+
+If product still has other gallery images → set first one as new primary
+
+Else → set primary imagePath = null (default image will show)
+
+✅ Updated deleteProductImageById() with Auto Primary Replacement
+
+Replace your method with this:
+
+@Override
+public void deleteProductImageById(Long imageId) {
+
+
+    ProductImage productImage = productImageRepository.findById(imageId)
+            .orElseThrow(() -> new ResourceNotFoundException("Image not found with id: " + imageId));
+
+
+    Product product = productImage.getProduct();
+
+
+    boolean isPrimary = product.getImagePath() != null &&
+            product.getImagePath().equals(productImage.getImagePath());
+
+
+    String fullPath = System.getProperty("user.dir") + productImage.getImagePath().replace("/", File.separator);
+
+
+    try {
+        boolean deleted = Files.deleteIfExists(Paths.get(fullPath));
+
+
+        if (deleted) {
+            log.info("Gallery image deleted from folder: {}", fullPath);
+        } else {
+            log.warn("Gallery image file not found, skipping delete: {}", fullPath);
+        }
+
+
+    } catch (IOException e) {
+        log.error("Failed to delete gallery image file: {}", fullPath, e);
+        throw new InvalidFileException("Failed to delete image from server.");
+    }
+
+
+    // delete image record
+    productImageRepository.delete(productImage);
+    log.info("Gallery image deleted from DB with id: {}", imageId);
+
+
+    // if deleted image was primary image
+    if (isPrimary) {
+
+
+        List<ProductImage> remainingImages = productImageRepository.findByProductId(product.getId());
+
+
+        if (!remainingImages.isEmpty()) {
+            // set first remaining image as new primary
+            product.setImagePath(remainingImages.get(0).getImagePath());
+            log.info("Primary image updated to another gallery image for product id: {}", product.getId());
+        } else {
+            // no images left, set null (default will come)
+            product.setImagePath(null);
+            log.info("No gallery images left. Primary image reset to null for product id: {}", product.getId());
+        }
+
+
+        productRepository.save(product);
+    }
+}
+✅ Now your flow is perfect
+Example:
+
+Product has 5 gallery images
+
+Primary image deleted
+
+Automatically next image becomes primary
+
+Just like Amazon.
+
+==================================================================================================================================
+
+✅ Goal
+
+Add createdAt in ProductImage table so we can:
+
+✅ know upload time
+✅ sort images properly
+✅ set latest uploaded image as primary automatically
+
+✅ Step 1: Update ProductImage Entity
+
+Update your entity like this:
+
+package com.advann.product_service.entity;
+
+
+import jakarta.persistence.*;
+import lombok.*;
+
+
+import java.time.LocalDateTime;
+
+
+@Entity
+@Table(name = "product_images")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ProductImage {
+
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+
+    private String imagePath;
+
+
+    private LocalDateTime createdAt;
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+
+
+    @PrePersist
+    public void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
+}
+✅ Step 2: Update Repository (Fetch Latest First)
+
+In ProductImageRepository add this method:
+
+List<ProductImage> findByProductIdOrderByCreatedAtDesc(Long productId);
+
+So final repository becomes:
+
+public interface ProductImageRepository extends JpaRepository<ProductImage, Long> {
+
+
+    List<ProductImage> findByProductId(Long productId);
+
+
+    List<ProductImage> findByProductIdOrderByCreatedAtDesc(Long productId);
+}
+✅ Step 3: Update Delete Logic to Set Latest Image as Primary
+
+Update this line:
+
+List<ProductImage> remainingImages = productImageRepository.findByProductId(product.getId());
+
+to:
+
+List<ProductImage> remainingImages = productImageRepository.findByProductIdOrderByCreatedAtDesc(product.getId());
+
+Now when primary is deleted, newest image will become primary.
+
+✅ Step 4: Update Upload Multiple Images (Optional Enhancement)
+
+After uploading all images, you can automatically set last uploaded as primary.
+
+At end of upload method add:
+
+product.setImagePath(responseList.get(0).getImagePath());
+productRepository.save(product);
+
+But better is to do this only when product has no primary.
+
+✅ Step 5: Database Update
+
+Since you use:
+
+ddl-auto: update
+
+Hibernate will automatically add created_at column.
+
+=====================================================================================================================
+
+✅ Limit gallery images per product (Max 5)
+
+So if a product already has 4 images and user uploads 3 more, we should throw error because total will become 7.
+
+✅ Step 1: Define a limit constant
+
+Inside ProductServiceImpl add at top:
+
+private static final int MAX_GALLERY_IMAGES = 5;
+✅ Step 2: Add count method in repository
+
+In ProductImageRepository add:
+
+long countByProductId(Long productId);
+
+Final repo:
+
+public interface ProductImageRepository extends JpaRepository<ProductImage, Long> {
+
+
+    List<ProductImage> findByProductId(Long productId);
+
+
+    List<ProductImage> findByProductIdOrderByCreatedAtDesc(Long productId);
+
+
+    long countByProductId(Long productId);
+}
+✅ Step 3: Add validation in uploadProductImages()
+
+Inside:
+
+public List<ProductImageResponseDto> uploadProductImages(Long productId, List<MultipartFile> files)
+
+Add this just after product fetch:
+
+long existingCount = productImageRepository.countByProductId(productId);
+
+
+if (existingCount + files.size() > MAX_GALLERY_IMAGES) {
+    throw new InvalidFileException(
+            "Maximum " + MAX_GALLERY_IMAGES + " images allowed per product. Already uploaded: "
+                    + existingCount + ", trying to upload: " + files.size()
+    );
+}
+✅ Final Flow
+
+Now it will allow upload only if total <= 5.
+
+🔥 Example
+
+Product already has 4 images
+User uploads 2 images
+➡️ Error:
+
+{
+  "timestamp": "...",
+  "status": 400,
+  "error": "Invalid File",
+  "message": "Maximum 5 images allowed per product. Already uploaded: 4, trying to upload: 2"
+}

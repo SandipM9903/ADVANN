@@ -1,0 +1,202 @@
+✅ Goal
+
+When user uploads image:
+
+✅ Resize to fixed dimension (example: 800x800)
+✅ Compress (reduce file size)
+✅ Save optimized image in uploads folder
+
+✅ Step 1: Add Dependency (for better compression)
+
+In pom.xml add Thumbnailator (best library for resizing/compressing):
+
+<dependency>
+    <groupId>net.coobird</groupId>
+    <artifactId>thumbnailator</artifactId>
+    <version>0.4.20</version>
+</dependency>
+✅ Step 2: Update your upload logic (Single Image)
+
+Replace this part:
+
+Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+With this:
+
+try {
+    Thumbnails.of(file.getInputStream())
+            .size(800, 800)
+            .outputQuality(0.7)
+            .toFile(filePath.toFile());
+} catch (IOException e) {
+    throw new InvalidFileException("Failed to upload image.");
+}
+✅ Step 3: Add Import
+import net.coobird.thumbnailator.Thumbnails;
+✅ Step 4: Update Multiple Upload also
+
+===================================================================================================================
+
+Now we will store 2 versions of each uploaded image:
+
+✅ Thumbnail → 300x300 (fast listing page)
+✅ Full Image → 800x800 (product details page)
+
+✅ Step 1: Update ProductImage Entity
+
+Add thumbnailPath field.
+
+private String thumbnailPath;
+
+So your ProductImage becomes:
+
+@Entity
+@Table(name = "product_images")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ProductImage {
+
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+
+    private String imagePath;        // full image
+    private String thumbnailPath;    // thumbnail
+
+
+    private LocalDateTime createdAt;
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+
+
+    @PrePersist
+    public void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
+}
+
+Hibernate will auto add new column because ddl-auto update.
+
+✅ Step 2: Update ProductImageResponseDto
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+public class ProductImageResponseDto {
+
+
+    private Long id;
+
+
+    private String imagePath;
+    private String imageUrl;
+
+
+    private String thumbnailPath;
+    private String thumbnailUrl;
+}
+✅ Step 3: Update Upload Logic (Multiple Images)
+
+Inside uploadProductImages() method, after generating filename, generate 2 files:
+
+Folder structure:
+uploads/products/gallery/full/
+uploads/products/gallery/thumb/
+Updated Code inside loop
+String fullDir = System.getProperty("user.dir") + "/uploads/products/gallery/full/";
+String thumbDir = System.getProperty("user.dir") + "/uploads/products/gallery/thumb/";
+
+
+new File(fullDir).mkdirs();
+new File(thumbDir).mkdirs();
+
+
+String fileName = System.currentTimeMillis() + "_" + productId + extension;
+
+
+Path fullPath = Paths.get(fullDir).resolve(fileName);
+Path thumbPath = Paths.get(thumbDir).resolve(fileName);
+
+
+try {
+    // Full Image (800x800)
+    Thumbnails.of(file.getInputStream())
+            .size(800, 800)
+            .outputQuality(0.8)
+            .toFile(fullPath.toFile());
+
+
+    // Thumbnail (300x300)
+    Thumbnails.of(file.getInputStream())
+            .size(300, 300)
+            .outputQuality(0.7)
+            .toFile(thumbPath.toFile());
+
+
+} catch (IOException e) {
+    throw new InvalidFileException("Failed to upload image.");
+}
+✅ Step 4: Save both paths in DB
+String imagePath = "/uploads/products/gallery/full/" + fileName;
+String thumbnailPath = "/uploads/products/gallery/thumb/" + fileName;
+
+
+ProductImage productImage = ProductImage.builder()
+        .imagePath(imagePath)
+        .thumbnailPath(thumbnailPath)
+        .product(product)
+        .build();
+✅ Step 5: Return response with both URLs
+responseList.add(ProductImageResponseDto.builder()
+        .id(savedImage.getId())
+        .imagePath(savedImage.getImagePath())
+        .imageUrl(buildImageUrl(savedImage.getImagePath()))
+        .thumbnailPath(savedImage.getThumbnailPath())
+        .thumbnailUrl(buildImageUrl(savedImage.getThumbnailPath()))
+        .build());
+✅ Step 6: Update setPrimaryImage Logic
+
+When setting primary image, use full image path:
+
+product.setImagePath(productImage.getImagePath());
+
+(Already correct)
+
+✅ Step 7: Update GET Product Images API Mapping
+
+Update your mapping:
+
+return images.stream()
+        .map(img -> ProductImageResponseDto.builder()
+                .id(img.getId())
+                .imagePath(img.getImagePath())
+                .imageUrl(buildImageUrl(img.getImagePath()))
+                .thumbnailPath(img.getThumbnailPath())
+                .thumbnailUrl(buildImageUrl(img.getThumbnailPath()))
+                .build())
+        .toList();
+🔥 Now you have ecommerce-level image system
+
+✅ full image for product detail
+✅ thumbnail for listing page
+✅ fast UI loading
+
+In uploadProductImages() method, same replacement.
+
+🔥 What will happen now?
+
+If user uploads 4MB image → it will become around 200KB to 500KB depending on quality.
+
+⭐ Best Settings (Recommended)
+
+size: 800x800 (good for ecommerce)
+
+outputQuality: 0.7 (70% compression)

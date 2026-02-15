@@ -1,0 +1,94 @@
+✅ Goal
+
+When user calls:
+
+DELETE /api/products/{productId}/delete-image
+
+It should:
+
+✅ Delete image file from folder
+✅ Set imagePath = null in DB
+✅ Return updated product response
+
+========================================================================================
+
+✅ Step 1: Add API in Controller
+
+In your ProductController add:
+
+@DeleteMapping("/{productId}/delete-image")
+public ResponseEntity<ApiResponse<ProductResponseDto>> deleteProductImage(
+        @PathVariable Long productId
+) {
+    ProductResponseDto response = productService.deleteProductImage(productId);
+
+
+    return ResponseEntity.ok(
+            new ApiResponse<>(true, "Product image deleted successfully", response)
+    );
+}
+
+=============================================================================================
+
+✅ Step 2: Add Method in Service Interface
+
+In ProductService.java
+
+ProductResponseDto deleteProductImage(Long productId);
+✅ Step 3: Implement in ServiceImpl
+
+In ProductServiceImpl.java
+
+@Override
+public ProductResponseDto deleteProductImage(Long productId) {
+
+
+    Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+
+    if (product.getImagePath() == null || product.getImagePath().isBlank()) {
+        throw new InvalidFileException("No image found for this product.");
+    }
+
+
+    String fullPath = System.getProperty("user.dir") + product.getImagePath().replace("/", File.separator);
+
+
+    File file = new File(fullPath);
+
+
+    if (file.exists()) {
+        boolean deleted = file.delete();
+        if (!deleted) {
+            throw new InvalidFileException("Failed to delete product image.");
+        }
+    }
+
+
+    product.setImagePath(null);
+
+
+    Product savedProduct = productRepository.save(product);
+
+
+    ProductResponseDto dto = modelMapper.map(savedProduct, ProductResponseDto.class);
+    dto.setImageUrl(null);
+
+
+    return dto;
+}
+✅ Step 4: Test in Postman
+Call:
+DELETE http://localhost:8081/api/products/2/delete-image
+Response:
+{
+  "success": true,
+  "message": "Product image deleted successfully",
+  "data": {
+    "id": 2,
+    "name": "iPhone 17 Cover",
+    "imagePath": null,
+    "imageUrl": null
+  }
+}

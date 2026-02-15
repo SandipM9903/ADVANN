@@ -1,0 +1,45 @@
+we can move default.png into resources/static so it will always be available even if uploads folder is deleted.
+
+
+✅ Step 1: Put default image inside static folder
+
+Create folder:
+
+src/main/resources/static/images/
+
+Now put file:
+
+default.png
+
+So final path becomes:
+
+src/main/resources/static/images/default.png
+✅ Step 2: Update buildImageUrl() method
+
+Now default image will come from /images/default.png
+
+private String buildImageUrl(String imagePath) {
+
+
+    if (imagePath == null || imagePath.isBlank()) {
+        return baseUrl + "/images/default.png";
+    }
+
+
+    return baseUrl + imagePath;
+}
+✅ Step 3: Test in browser
+
+Open:
+
+http://localhost:8081/images/default.jpg
+
+It should display.
+
+✅ Step 4: Result in API Response
+
+If product has no image:
+
+"imageUrl": "http://localhost:8081/images/default.png"
+
+Now your default image feature is perfect production style 🔥💯

@@ -1,0 +1,323 @@
+✅ Day 9 Part 2 Goals
+
+Today we will implement:
+
+✅ User Registration API
+✅ Password Encryption using BCrypt
+✅ Email uniqueness check
+✅ Proper response structure using ApiResponse
+✅ DTO classes (Request + Response)
+✅ Service layer implementation
+
+========================================================================================
+
+✅ Step 1: Create DTOs
+
+📌 dto/RegisterRequestDto.java
+package com.advann.user_service.dto;
+
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+
+@Data
+public class RegisterRequestDto {
+
+
+    @NotBlank(message = "Name cannot be blank")
+    private String name;
+
+
+    @Email(message = "Invalid email format")
+    @NotBlank(message = "Email cannot be blank")
+    private String email;
+
+
+    @NotBlank(message = "Password cannot be blank")
+    @Size(min = 6, message = "Password must be at least 6 characters")
+    private String password;
+}
+
+
+📌 dto/UserResponseDto.java
+
+package com.advann.user_service.dto;
+
+
+import com.advann.user_service.entity.Role;
+import lombok.Builder;
+import lombok.Data;
+
+
+@Data
+@Builder
+public class UserResponseDto {
+    private Long id;
+    private String name;
+    private String email;
+    private Role role;
+}
+
+=========================================================================================
+
+✅ Step 2: Create ApiResponse class
+
+📌 payload/ApiResponse.java
+
+package com.advann.user_service.payload;
+
+
+import lombok.Builder;
+import lombok.Data;
+
+
+@Data
+@Builder
+public class ApiResponse<T> {
+
+
+    private boolean success;
+    private String message;
+    private T data;
+}
+
+===========================================================================================
+
+✅ Step 3: Create Custom Exception
+
+📌 exceptions/EmailAlreadyExistsException.java
+
+package com.advann.user_service.exceptions;
+
+
+public class EmailAlreadyExistsException extends RuntimeException {
+    public EmailAlreadyExistsException(String message) {
+        super(message);
+    }
+}
+
+===========================================================================================
+
+✅ Step 4: Global Exception Handler
+
+📌 exceptions/GlobalExceptionHandler.java
+
+package com.advann.user_service.exceptions;
+
+
+import com.advann.user_service.payload.ApiResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+
+import java.util.HashMap;
+import java.util.Map;
+
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Object>> handleEmailExists(EmailAlreadyExistsException ex) {
+        ApiResponse<Object> response = ApiResponse.builder()
+                .success(false)
+                .message(ex.getMessage())
+                .data(null)
+                .build();
+
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidation(MethodArgumentNotValidException ex) {
+
+
+        Map<String, String> errors = new HashMap<>();
+
+
+        ex.getBindingResult().getFieldErrors().forEach(error ->
+                errors.put(error.getField(), error.getDefaultMessage())
+        );
+
+
+        ApiResponse<Map<String, String>> response = ApiResponse.<Map<String, String>>builder()
+                .success(false)
+                .message("Validation Failed")
+                .data(errors)
+                .build();
+
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+}
+
+===========================================================================================
+
+✅ Step 5: Create Password Encoder Config
+
+📌 security/SecurityConfig.java
+
+package com.advann.user_service.security;
+
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+
+@Configuration
+public class SecurityConfig {
+
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+
+===========================================================================================
+
+✅ Step 6: Create Service Interface
+
+📌 service/UserService.java
+
+package com.advann.user_service.service;
+
+
+import com.advann.user_service.dto.RegisterRequestDto;
+import com.advann.user_service.dto.UserResponseDto;
+
+
+public interface UserService {
+    UserResponseDto registerUser(RegisterRequestDto registerRequestDto);
+}
+
+===========================================================================================
+
+✅ Step 7: Create Service Implementation
+
+📌 serviceImpl/UserServiceImpl.java
+
+package com.advann.user_service.serviceImpl;
+
+
+import com.advann.user_service.dto.RegisterRequestDto;
+import com.advann.user_service.dto.UserResponseDto;
+import com.advann.user_service.entity.Role;
+import com.advann.user_service.entity.User;
+import com.advann.user_service.exceptions.EmailAlreadyExistsException;
+import com.advann.user_service.repository.UserRepository;
+import com.advann.user_service.service.UserService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+
+@Service
+@RequiredArgsConstructor
+public class UserServiceImpl implements UserService {
+
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+
+    @Override
+    public UserResponseDto registerUser(RegisterRequestDto registerRequestDto) {
+
+
+        if (userRepository.existsByEmail(registerRequestDto.getEmail())) {
+            throw new EmailAlreadyExistsException("Email already exists: " + registerRequestDto.getEmail());
+        }
+
+
+        User user = User.builder()
+                .name(registerRequestDto.getName())
+                .email(registerRequestDto.getEmail())
+                .password(passwordEncoder.encode(registerRequestDto.getPassword()))
+                .role(Role.CUSTOMER)
+                .build();
+
+
+        User savedUser = userRepository.save(user);
+
+
+        return UserResponseDto.builder()
+                .id(savedUser.getId())
+                .name(savedUser.getName())
+                .email(savedUser.getEmail())
+                .role(savedUser.getRole())
+                .build();
+    }
+}
+
+===========================================================================================
+
+✅ Step 8: Create UserController
+
+📌 controller/UserController.java
+
+package com.advann.user_service.controller;
+
+
+import com.advann.user_service.dto.RegisterRequestDto;
+import com.advann.user_service.dto.UserResponseDto;
+import com.advann.user_service.payload.ApiResponse;
+import com.advann.user_service.service.UserService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+
+@RestController
+@RequestMapping("/api/users")
+@RequiredArgsConstructor
+public class UserController {
+
+
+    private final UserService userService;
+
+
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<UserResponseDto>> registerUser(@Valid @RequestBody RegisterRequestDto registerRequestDto) {
+
+
+        UserResponseDto savedUser = userService.registerUser(registerRequestDto);
+
+
+        ApiResponse<UserResponseDto> response = ApiResponse.<UserResponseDto>builder()
+                .success(true)
+                .message("User registered successfully")
+                .data(savedUser)
+                .build();
+
+
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+}
+
+===========================================================================================
+
+
+===========================================================================================
+
+
+===========================================================================================
+
+
+===========================================================================================
+
+
+===========================================================================================

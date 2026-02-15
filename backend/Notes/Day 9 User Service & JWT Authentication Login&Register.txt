@@ -1,0 +1,229 @@
+Today we will start the most important module for ATS + real company projects.
+
+Because now your project will become a real e-commerce backend.
+
+======================================================================================================
+
+🎯 Goal of Day 9
+
+We will create:
+
+✅ User Service
+✅ Register API
+✅ Login API
+✅ JWT Token generation
+✅ Password encryption (BCrypt)
+✅ Role based user (ADMIN / CUSTOMER)
+✅ Swagger testing for login/register
+
+=======================================================================================================
+
+🏗 Microservices Today
+
+Till now we have:
+
+Eureka Server (8761)
+
+API Gateway (8080)
+
+Product Service (8081)
+
+Now we will create:
+
+✅ User Service (8083)
+
+=======================================================================================================
+
+✅ Step 1: Create new Spring Boot Project (user-service)
+Name:
+
+user-service
+
+Dependencies:
+
+Select these:
+
+✅ Spring Web
+✅ Spring Data JPA
+✅ PostgreSQL Driver
+✅ Spring Security
+✅ Validation
+✅ Lombok
+✅ Eureka Discovery Client
+
+(Actuator + Swagger we can add later)
+
+=======================================================================================================
+
+✅ Step 2: Add dependencies in pom.xml (JWT + Swagger optional)
+
+Add JWT dependency:
+
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-api</artifactId>
+    <version>0.11.5</version>
+</dependency>
+
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-impl</artifactId>
+    <version>0.11.5</version>
+    <scope>runtime</scope>
+</dependency>
+
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-jackson</artifactId>
+    <version>0.11.5</version>
+    <scope>runtime</scope>
+</dependency>
+
+=======================================================================================================
+
+✅ Step 3: application.yml for user-service
+
+Create:
+
+📌 user-service/src/main/resources/application.yml
+
+server:
+  port: 8083
+
+spring:
+  application:
+    name: user-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/advann_db
+    username: postgres
+    password: root
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+======================================================================================================
+
+✅ Step 4: Create Package Structure
+
+Inside com.advann.user_service
+
+entity
+repository
+service
+serviceImpl
+controller
+dto
+security
+exceptions
+payload
+
+======================================================================================================
+
+✅ Step 5: Create User Entity
+
+📌 entity/User.java
+
+package com.advann.user_service.entity;
+
+package com.advann.user_service.entity;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
+
+@Entity
+@Table(name = "users")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotBlank(message = "Name cannot be blank")
+    @Column(nullable = false)
+    private String name;
+
+    @NotBlank(message = "Email cannot be blank")
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @Column(nullable = false)
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    private Role role;
+}
+
+==============================================================================================
+
+✅ Step 6: Create Role Enum
+
+📌 entity/Role.java
+
+package com.advann.user_service.entity;
+
+
+public enum Role {
+    ADMIN,
+    CUSTOMER
+}
+
+==============================================================================================
+
+✅ Step 7: Create UserRepository
+
+📌 repository/UserRepository.java
+
+package com.advann.user_service.repository;
+
+
+import com.advann.user_service.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+
+import java.util.Optional;
+
+
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByEmail(String email);
+    boolean existsByEmail(String email);
+}
+
+==============================================================================================
+
+✅ Step 8: Run user-service and Check Eureka
+
+Now run:
+
+Eureka Server
+
+API Gateway
+
+Product Service
+
+User Service
+
+Then check Eureka dashboard:
+
+👉 http://localhost:8761
+
+You should see:
+
+✅ PRODUCT-SERVICE
+✅ API-GATEWAY
+✅ USER-SERVICE
+
+================================================================================================
+

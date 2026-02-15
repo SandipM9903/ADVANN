@@ -1,0 +1,98 @@
+✅ Day 4 Notes (API Gateway + Load Balancing)
+✅ What we implemented
+
+We implemented API Gateway routing using Spring Cloud Gateway and Eureka Service Discovery.
+
+✅ How routing works
+Request sent to Gateway:
+http://localhost:8080/product-service/api/products
+
+Gateway forwards this request to Product Service automatically.
+
+✅ Gateway Configuration (application.yml)
+server:
+  port: 8080
+
+
+spring:
+  application:
+    name: api-gateway
+
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+
+      routes:
+        - id: product-service
+          uri: lb://PRODUCT-SERVICE
+          predicates:
+            - Path=/product-service/**
+
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+✅ Meaning of lb://PRODUCT-SERVICE
+
+lb:// means Load Balancer.
+
+Gateway does not call fixed URL like:
+
+❌ http://localhost:8081
+
+Instead it calls:
+
+✅ lb://PRODUCT-SERVICE
+
+Gateway asks Eureka:
+
+➡️ “Give me available instances of PRODUCT-SERVICE”
+
+Then it routes automatically.
+
+✅ Eureka Role
+
+Eureka keeps list of running instances like:
+
+PRODUCT-SERVICE -> localhost:8081
+PRODUCT-SERVICE -> localhost:8082
+✅ How to run multiple instances of same service (local)
+Instance 1:
+
+Run normally:
+
+ProductServiceApplication (default port 8081)
+Instance 2:
+
+Run with program arguments:
+
+--server.port=8082
+
+So now two product services are running:
+
+8081
+
+8082
+
+✅ What happens after this?
+
+When we call:
+
+http://localhost:8080/product-service/api/products
+
+Gateway will send request sometimes to:
+
+localhost:8081
+
+localhost:8082
+
+This is called:
+
+✅ Client-side load balancing

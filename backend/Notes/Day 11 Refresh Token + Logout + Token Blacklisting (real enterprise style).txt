@@ -1,0 +1,466 @@
+Now we are entering real enterprise JWT level.
+
+Because only Access Token is not enough. In real projects we need:
+
+✅ Access Token (short expiry)
+✅ Refresh Token (long expiry)
+✅ Logout (invalidate refresh token)
+✅ Token Blacklisting (block stolen token)
+
+So let’s start step-by-step properly.
+
+✅ STEP 1: Update application.yml (Important)
+
+In user-service application.yml add:
+
+jwt:
+  secret: 12345678901234567890123456789012
+  access-expiration: 900000
+  refresh-expiration: 604800000
+
+========================================================================================================
+
+✅ STEP 2: Create RefreshToken Entity
+
+📌 com.advann.user_service.entity.RefreshToken
+
+package com.advann.user_service.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "refresh_tokens")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class RefreshToken {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 500)
+    private String token;
+
+    @Column(nullable = false)
+    private Instant expiryDate;
+
+    @ManyToOne
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    private boolean revoked;   // logout = true
+}
+
+========================================================================================================
+
+✅ STEP 3: Create RefreshTokenRepository
+
+📌 com.advann.user_service.repository.RefreshTokenRepository
+
+
+package com.advann.user_service.repository;
+
+import com.advann.user_service.entity.RefreshToken;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
+
+    Optional<RefreshToken> findByToken(String token);
+
+    void deleteByUserId(Long userId);
+}
+
+========================================================================================================
+
+✅ STEP 4: Update AuthResponseDto
+
+Now we will return both tokens.
+
+📌 com.advann.user_service.dto.AuthResponseDto
+
+package com.advann.user_service.dto;
+
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class AuthResponseDto {
+    private String accessToken;
+    private String refreshToken;
+    private String email;
+}
+
+========================================================================================================
+
+✅ STEP 5: Create RefreshTokenRequestDto
+
+📌 com.advann.user_service.dto.RefreshTokenRequestDto
+
+package com.advann.user_service.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+@Data
+public class RefreshTokenRequestDto {
+    @NotBlank(message = "Refresh token cannot be blank")
+    private String refreshToken;
+}
+
+========================================================================================================
+
+✅ STEP 6: Update JwtService for Access + Refresh Tokens
+
+📌 com.advann.user_service.security.jwt.JwtService
+
+package com.advann.user_service.security.jwt;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.util.Date;
+import java.util.function.Function;
+
+@Service
+public class JwtService {
+
+    @Value("${jwt.secret}")
+    private String secretKey;
+
+    @Value("${jwt.access-expiration}")
+    private long accessExpiration;
+
+    @Value("${jwt.refresh-expiration}")
+    private long refreshExpiration;
+
+    private Key getSigningKey() {
+        return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public String generateAccessToken(String username) {
+        return generateToken(username, accessExpiration);
+    }
+
+    public String generateRefreshToken(String username) {
+        return generateToken(username, refreshExpiration);
+    }
+
+    private String generateToken(String username, long expiration) {
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> resolver) {
+        Claims claims = Jwts.parser()
+                .verifyWith((javax.crypto.SecretKey) getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        return resolver.apply(claims);
+    }
+
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        final String username = extractUsername(token);
+        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+    }
+
+    private boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+}
+
+========================================================================================================
+
+✅ STEP 7: Create RefreshTokenService
+
+📌 com.advann.user_service.service.services.RefreshTokenService
+
+package com.advann.user_service.service.services;
+
+import com.advann.user_service.entity.RefreshToken;
+
+public interface RefreshTokenService {
+
+    RefreshToken createRefreshToken(String email);
+
+    RefreshToken verifyExpiration(RefreshToken token);
+
+    void revokeToken(String token);
+}
+
+========================================================================================================
+
+✅ STEP 8: Implement RefreshTokenServiceImpl
+
+📌 com.advann.user_service.service.serviceImpl.RefreshTokenServiceImpl
+
+package com.advann.user_service.service.serviceImpl;
+
+import com.advann.user_service.entity.RefreshToken;
+import com.advann.user_service.entity.User;
+import com.advann.user_service.repository.RefreshTokenRepository;
+import com.advann.user_service.repository.UserRepository;
+import com.advann.user_service.security.jwt.JwtService;
+import com.advann.user_service.service.services.RefreshTokenService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+
+@Service
+@RequiredArgsConstructor
+public class RefreshTokenServiceImpl implements RefreshTokenService {
+
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final UserRepository userRepository;
+    private final JwtService jwtService;
+
+    @Value("${jwt.refresh-expiration}")
+    private long refreshExpiration;
+
+    @Override
+    public RefreshToken createRefreshToken(String email) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String refreshToken = jwtService.generateRefreshToken(email);
+
+        RefreshToken token = RefreshToken.builder()
+                .user(user)
+                .token(refreshToken)
+                .expiryDate(Instant.now().plusMillis(refreshExpiration))
+                .revoked(false)
+                .build();
+
+        return refreshTokenRepository.save(token);
+    }
+
+    @Override
+    public RefreshToken verifyExpiration(RefreshToken token) {
+
+        if (token.isRevoked()) {
+            throw new RuntimeException("Refresh token revoked (logged out)");
+        }
+
+        if (token.getExpiryDate().isBefore(Instant.now())) {
+            refreshTokenRepository.delete(token);
+            throw new RuntimeException("Refresh token expired");
+        }
+
+        return token;
+    }
+
+    @Override
+    public void revokeToken(String token) {
+
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(token)
+                .orElseThrow(() -> new RuntimeException("Refresh token not found"));
+
+        refreshToken.setRevoked(true);
+        refreshTokenRepository.save(refreshToken);
+    }
+}
+
+========================================================================================================
+
+✅ STEP 9: Update AuthServiceImpl login()
+
+📌 AuthServiceImpl
+
+Replace your login() method:
+
+package com.advann.user_service.service.serviceImpl;
+
+import com.advann.user_service.dto.AuthResponseDto;
+import com.advann.user_service.dto.LoginRequestDto;
+import com.advann.user_service.dto.RegisterRequestDto;
+import com.advann.user_service.entity.Role;
+import com.advann.user_service.entity.User;
+import com.advann.user_service.exception.EmailAlreadyExistsException;
+import com.advann.user_service.repository.UserRepository;
+import com.advann.user_service.security.jwt.CustomUserDetailsService;
+import com.advann.user_service.security.jwt.JwtService;
+import com.advann.user_service.service.services.AuthService;
+import com.advann.user_service.service.services.RefreshTokenService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class AuthServiceImpl implements AuthService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final AuthenticationManager authenticationManager;
+    private final CustomUserDetailsService customUserDetailsService;
+    private final RefreshTokenService refreshTokenService;
+
+    @Override
+    public void register(RegisterRequestDto registerRequestDto) {
+
+        if (userRepository.existsByEmail(registerRequestDto.getEmail())) {
+            throw new EmailAlreadyExistsException("Email already registered: " + registerRequestDto.getEmail());
+        }
+
+        User user = User.builder()
+                .username(registerRequestDto.getUsername())
+                .email(registerRequestDto.getEmail())
+                .password(passwordEncoder.encode(registerRequestDto.getPassword()))
+                .role(Role.CUSTOMER)
+                .build();
+
+        userRepository.save(user);
+    }
+
+    @Override
+    public AuthResponseDto login(LoginRequestDto loginRequestDto) {
+
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        loginRequestDto.getEmail(),
+                        loginRequestDto.getPassword()
+                )
+        );
+
+        String accessToken = jwtService.generateAccessToken(loginRequestDto.getEmail());
+
+        String refreshToken = refreshTokenService.createRefreshToken(loginRequestDto.getEmail()).getToken();
+
+        return AuthResponseDto.builder()
+                .email(loginRequestDto.getEmail())
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .build();
+    }
+}
+
+========================================================================================================
+
+✅ STEP 10: Add Refresh Token API in AuthController
+
+📌 AuthController
+
+Add this API:
+
+@PostMapping("/refresh")
+public ResponseEntity<ApiResponse<AuthResponseDto>> refreshToken(
+        @Valid @RequestBody RefreshTokenRequestDto requestDto) {
+
+    AuthResponseDto responseDto = authService.refreshAccessToken(requestDto.getRefreshToken());
+
+    ApiResponse<AuthResponseDto> response = ApiResponse.<AuthResponseDto>builder()
+            .success(true)
+            .message("Token refreshed successfully")
+            .data(responseDto)
+            .build();
+
+    return ResponseEntity.ok(response);
+}
+
+========================================================================================================
+
+✅ STEP 11: Add refreshAccessToken() method in AuthService
+
+📌 AuthService
+
+AuthResponseDto refreshAccessToken(String refreshToken);
+
+========================================================================================================
+
+✅ STEP 12: Implement refreshAccessToken() in AuthServiceImpl
+
+@Override
+public AuthResponseDto refreshAccessToken(String refreshToken) {
+
+    RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
+            .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
+
+    refreshTokenService.verifyExpiration(token);
+
+    String email = jwtService.extractUsername(refreshToken);
+
+    String newAccessToken = jwtService.generateAccessToken(email);
+
+    return AuthResponseDto.builder()
+            .email(email)
+            .accessToken(newAccessToken)
+            .refreshToken(refreshToken)
+            .build();
+}
+
+========================================================================================================
+
+✅ STEP 13: Logout API (Token Revocation)
+
+In AuthController add:
+
+@PostMapping("/logout")
+public ResponseEntity<ApiResponse<String>> logout(
+        @Valid @RequestBody RefreshTokenRequestDto requestDto) {
+
+    authService.logout(requestDto.getRefreshToken());
+
+    ApiResponse<String> response = ApiResponse.<String>builder()
+            .success(true)
+            .message("Logout successful")
+            .data("Refresh token revoked")
+            .build();
+
+    return ResponseEntity.ok(response);
+}
+
+========================================================================================================
+
+✅ STEP 14: Add logout() method in AuthService
+void logout(String refreshToken);
+✅ STEP 15: Implement logout() in AuthServiceImpl
+@Override
+public void logout(String refreshToken) {
+    refreshTokenService.revokeToken(refreshToken);
+}
+
+========================================================================================================
+
+========================================================================================================
+
+========================================================================================================
+
+========================================================================================================
+
+========================================================================================================
+
+========================================================================================================

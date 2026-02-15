@@ -1,0 +1,225 @@
+Right now if file size exceeds 2MB, Spring throws a default exception and the response looks ugly.
+
+We will make it clean by:
+
+✅ Handling exception globally
+✅ Returning proper JSON response
+✅ Giving meaningful message like: "File size must not exceed 2MB"
+
+==========================================================================================================
+
+✅ Step 1: Create a Global Exception Handler
+
+Create this file:
+
+📌 src/main/java/com/advann/product_service/exception/GlobalExceptionHandler.java
+
+package com.advann.product_service.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+
+import java.time.LocalDateTime;
+
+@ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxSizeException(MaxUploadSizeExceededException ex) {
+
+        ErrorResponse response = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.PAYLOAD_TOO_LARGE.value())
+                .error("File Upload Error")
+                .message("File size must not exceed 2MB")
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+
+========================================================================================================
+
+✅ Step 2: (Optional but Recommended) Make Response Common for All APIs
+
+Instead of returning Map everywhere, you can create a proper DTO.
+
+Create file:
+
+📌 src/main/java/com/advann/product_service/payload/ErrorResponse.java
+
+package com.advann.product_service.payload;
+
+import lombok.*;
+import java.time.LocalDateTime;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+public class ErrorResponse {
+
+    private LocalDateTime timestamp;
+    private int status;
+    private String error;
+    private String message;
+}
+===========================================================================================================
+
+Now your project is proper production style because:
+
+✅ File size validation working
+✅ Exception handled globally
+✅ Clean JSON response returned
+✅ No ugly Spring default error page
+
+Next level improvement (optional):
+We can also handle File type validation (jpg/png only) and Missing file error.
+
+===========================================================================================================
+
+Now we will handle these cases:
+
+✅ No file uploaded (empty file)
+✅ Invalid file type (only jpg/png/jpeg allowed)
+✅ Return proper clean response using ErrorResponse
+✅ Custom exception (for clean structure)
+
+============================================================================================================
+
+✅ Step 1: Create Custom Exception
+
+📌 Create file:
+
+src/main/java/com/advann/product_service/exception/InvalidFileException.java
+
+package com.advann.product_service.exception;
+
+
+public class InvalidFileException extends RuntimeException {
+
+
+    public InvalidFileException(String message) {
+        super(message);
+    }
+}
+
+=============================================================================================================
+
+✅ Step 1: Create Custom Exception
+
+📌 Create file:
+
+src/main/java/com/advann/product_service/exception/InvalidFileException.java
+
+package com.advann.product_service.exception;
+
+
+public class InvalidFileException extends RuntimeException {
+
+
+    public InvalidFileException(String message) {
+        super(message);
+    }
+}
+==============================================================================================================================
+✅ Step 2: Validate File in Service
+
+public ProductResponseDto uploadProductImage(Long productId, MultipartFile file) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+        validateImageFile(file);
+
+        // delete old image if exists
+        deleteOldImageIfExists(product);
+
+        String uploadDir = System.getProperty("user.dir") + "/uploads/products/";
+        File directory = new File(uploadDir);
+
+        if (!directory.exists()) {
+            directory.mkdirs();
+        }
+
+        String originalFileName = file.getOriginalFilename();
+        if (originalFileName == null || originalFileName.isBlank()) {
+            throw new InvalidFileException("Invalid file name.");
+        }
+
+        // Extract extension safely
+        String extension = "";
+        int lastDotIndex = originalFileName.lastIndexOf(".");
+        if (lastDotIndex > 0) {
+            extension = originalFileName.substring(lastDotIndex);
+        }
+
+        // Generate unique file name (safe)
+        String fileName = System.currentTimeMillis() + "_" + productId + extension;
+
+        Path filePath = Paths.get(uploadDir).resolve(fileName);
+
+        try {
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new InvalidFileException("Failed to upload image. Please try again.");
+        }
+
+        String imagePath = "/uploads/products/" + fileName;
+        product.setImagePath(imagePath);
+
+        Product savedProduct = productRepository.save(product);
+
+        ProductResponseDto dto = modelMapper.map(savedProduct, ProductResponseDto.class);
+        dto.setImageUrl(buildImageUrl(savedProduct.getImagePath()));
+
+        return dto;
+    }
+}
+=================================================================================================================================
+✅ Step 3: Handle InvalidFileException in GlobalExceptionHandler
+
+Update your GlobalExceptionHandler.java
+
+@ExceptionHandler(InvalidFileException.class)
+public ResponseEntity<ErrorResponse> handleInvalidFileException(InvalidFileException ex) {
+
+
+    ErrorResponse response = ErrorResponse.builder()
+            .timestamp(LocalDateTime.now())
+            .status(HttpStatus.BAD_REQUEST.value())
+            .error("Invalid File")
+            .message(ex.getMessage())
+            .build();
+
+
+    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+}
+
+===================================================================================================================================
+✅ Step 4: Handle Missing Multipart File Error
+
+Sometimes user sends request without file key, then Spring throws:
+
+MissingServletRequestPartException
+
+So add this:
+
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+
+
+@ExceptionHandler(MissingServletRequestPartException.class)
+public ResponseEntity<ErrorResponse> handleMissingServletRequestPart(MissingServletRequestPartException ex) {
+
+
+    ErrorResponse response = ErrorResponse.builder()
+            .timestamp(LocalDateTime.now())
+            .status(HttpStatus.BAD_REQUEST.value())
+            .error("File Missing")
+            .message("File is required. Please upload a file.")
+            .build();
+
+
+    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+}
+
+===============================================================================================================================

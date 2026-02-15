@@ -1,0 +1,124 @@
+✅ Correct Microservice JWT Flow
+1️⃣ user-service (Auth Service)
+
+Register
+
+Login
+
+Generate JWT Token
+
+Return token to client
+
+2️⃣ product-service (Resource Service)
+
+Receive request with token
+
+Validate token
+
+Extract user + role
+
+Allow access based on role
+
+✅ How to add Authentication in product-service
+Step 1: Add dependencies in product-service (pom.xml)
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+
+
+<!-- JWT -->
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-api</artifactId>
+    <version>0.12.5</version>
+</dependency>
+
+
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-impl</artifactId>
+    <version>0.12.5</version>
+    <scope>runtime</scope>
+</dependency>
+
+
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-jackson</artifactId>
+    <version>0.12.5</version>
+    <scope>runtime</scope>
+</dependency>
+Step 2: Add same JWT secret in product-service application.yml
+
+⚠️ Must be exactly same as user-service.
+
+jwt:
+  secret: your_very_long_secret_key_here_256bit_minimum
+  expiration: 86400000
+Step 3: Create JWT package in product-service
+
+📌 Create folder:
+
+com.advann.product_service.security.jwt
+
+Add these classes:
+
+JwtService
+
+JwtAuthenticationFilter
+
+(Same as user-service)
+
+Step 4: Create SecurityConfig in product-service
+
+📌 com.advann.product_service.security.SecurityConfig
+
+@Configuration
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+
+        http.csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                );
+
+
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+
+        return http.build();
+    }
+}
+✅ Final Result
+
+Now product-service will require token.
+
+Call product-service API like:
+GET http://localhost:8081/api/products
+Authorization: Bearer <token>
+
+Without token it will block.
+
+⭐ Best Practice (Important)
+
+Instead of validating JWT in every service manually,
+later we will do this in API-Gateway (central authentication).
+
+But for learning, doing it in product-service is fine.

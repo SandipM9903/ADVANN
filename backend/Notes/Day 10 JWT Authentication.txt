@@ -1,0 +1,674 @@
+✅ Day 10 Notes: JWT Authentication (User Service)
+✅ Goal
+
+Implement JWT Authentication in user-service so that:
+
+User can Register
+
+User can Login
+
+Login returns JWT Token
+
+Protected APIs require:
+
+Authorization: Bearer <JWT_TOKEN>
+✅ Step 1: Add Dependencies in user-service (pom.xml)
+
+Add these inside <dependencies>:
+
+<!-- Spring Security -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+
+
+<!-- JWT Dependencies -->
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-api</artifactId>
+    <version>0.12.5</version>
+</dependency>
+
+
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-impl</artifactId>
+    <version>0.12.5</version>
+    <scope>runtime</scope>
+</dependency>
+
+
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-jackson</artifactId>
+    <version>0.12.5</version>
+    <scope>runtime</scope>
+</dependency>
+✅ Step 2: Add JWT Secret in application.yml
+
+In user-service application.yml add:
+
+jwt:
+  secret: mySecretKeyForAdvannProject1234567890mySecretKeyForAdvannProject1234567890
+  expiration: 86400000   # 1 day in milliseconds
+⭐ Important Note
+
+Secret must be minimum 256 bits (at least 32 characters).
+Otherwise you will get:
+
+WeakKeyException
+
+✅ Step 3: Folder Structure (JWT)
+
+Final folder structure should be:
+
+com.advann.user_service
+│
+├── controller
+│   ├── AuthController.java
+│
+├── dto
+│   ├── RegisterRequestDto.java
+│   ├── LoginRequestDto.java
+│   ├── AuthResponseDto.java
+│
+├── entity
+│   ├── User.java
+│   ├── Role.java
+│
+├── repository
+│   ├── UserRepository.java
+│
+├── security
+│   ├── SecurityConfig.java
+│   └── jwt
+│       ├── JwtService.java
+│       ├── JwtAuthenticationFilter.java
+│       └── CustomUserDetailsService.java
+│
+├── service
+│   ├── services
+│   │   └── AuthService.java
+│   └── serviceImpl
+│       └── AuthServiceImpl.java
+│
+└── payload
+    └── ApiResponse.java
+✅ Step 4: Create JwtService Class (Corrected for jjwt 0.12.5)
+
+📍 File:
+com.advann.user_service.security.jwt.JwtService.java
+
+package com.advann.user_service.security.jwt;
+
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+
+import javax.crypto.SecretKey;
+import java.util.Date;
+import java.util.function.Function;
+
+
+@Service
+public class JwtService {
+
+
+    @Value("${jwt.secret}")
+    private String secretKey;
+
+
+    @Value("${jwt.expiration}")
+    private long jwtExpiration;
+
+
+    private SecretKey getSigningKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+
+    public String generateToken(String username) {
+
+
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        final String username = extractUsername(token);
+        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+    }
+
+
+    private boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+
+    public <T> T extractClaim(String token, Function<Claims, T> resolver) {
+        final Claims claims = extractAllClaims(token);
+        return resolver.apply(claims);
+    }
+
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+}
+✅ Step 5: JwtAuthenticationFilter
+
+📍 File:
+com.advann.user_service.security.jwt.JwtAuthenticationFilter.java
+
+package com.advann.user_service.security.jwt;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+
+import java.io.IOException;
+
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+
+    private final JwtService jwtService;
+    private final UserDetailsService userDetailsService;
+
+
+    public JwtAuthenticationFilter(JwtService jwtService,
+                                   UserDetailsService userDetailsService) {
+        this.jwtService = jwtService;
+        this.userDetailsService = userDetailsService;
+    }
+
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
+
+
+        final String authHeader = request.getHeader("Authorization");
+
+
+        String jwtToken = null;
+        String username = null;
+
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            jwtToken = authHeader.substring(7);
+            username = jwtService.extractUsername(jwtToken);
+        }
+
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+
+            if (jwtService.isTokenValid(jwtToken, userDetails)) {
+
+
+                UsernamePasswordAuthenticationToken authenticationToken =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
+
+
+                authenticationToken.setDetails(
+                        new WebAuthenticationDetailsSource().buildDetails(request)
+                );
+
+
+                SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+            }
+        }
+
+
+        filterChain.doFilter(request, response);
+    }
+}
+✅ Step 6: CustomUserDetailsService
+
+📍 File:
+com.advann.user_service.security.jwt.CustomUserDetailsService.java
+
+package com.advann.user_service.security.jwt;
+
+
+import com.advann.user_service.entity.User;
+import com.advann.user_service.repository.UserRepository;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+
+    private final UserRepository userRepository;
+
+
+    public CustomUserDetailsService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new UsernameNotFoundException("User not found with email: " + email)
+                );
+
+
+        return org.springframework.security.core.userdetails.User.builder()
+                .username(user.getEmail())
+                .password(user.getPassword())
+                .roles(user.getRole().name())
+                .build();
+    }
+}
+✅ Step 7: Correct SecurityConfig (FINAL Correct Version)
+
+📍 File:
+com.advann.user_service.security.SecurityConfig.java
+
+package com.advann.user_service.security;
+
+
+import com.advann.user_service.security.jwt.CustomUserDetailsService;
+import com.advann.user_service.security.jwt.JwtAuthenticationFilter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+
+@Configuration
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CustomUserDetailsService customUserDetailsService;
+
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config)
+            throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+
+
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+
+
+        authProvider.setUserDetailsService(customUserDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder());
+
+
+        return authProvider;
+    }
+
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+
+        http.csrf(csrf -> csrf.disable());
+
+
+        http.authorizeHttpRequests(auth -> auth
+                .requestMatchers(
+                        "/api/auth/**",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui.html"
+                ).permitAll()
+                .anyRequest().authenticated()
+        );
+
+
+        http.sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        );
+
+
+        http.authenticationProvider(authenticationProvider());
+
+
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+
+        return http.build();
+    }
+}
+✅ Step 8: AuthController (Register + Login)
+
+📍 File:
+com.advann.user_service.controller.AuthController.java
+
+package com.advann.user_service.controller;
+
+
+import com.advann.user_service.dto.AuthResponseDto;
+import com.advann.user_service.dto.LoginRequestDto;
+import com.advann.user_service.dto.RegisterRequestDto;
+import com.advann.user_service.payload.ApiResponse;
+import com.advann.user_service.service.services.AuthService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+
+    private final AuthService authService;
+
+
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<String>> register(
+            @Valid @RequestBody RegisterRequestDto registerRequestDto) {
+
+
+        authService.register(registerRequestDto);
+
+
+        ApiResponse<String> response = ApiResponse.<String>builder()
+                .success(true)
+                .message("User registered successfully")
+                .data("Registration successful")
+                .build();
+
+
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<AuthResponseDto>> login(
+            @Valid @RequestBody LoginRequestDto loginRequestDto) {
+
+
+        AuthResponseDto authResponse = authService.login(loginRequestDto);
+
+
+        ApiResponse<AuthResponseDto> response = ApiResponse.<AuthResponseDto>builder()
+                .success(true)
+                .message("Login successful")
+                .data(authResponse)
+                .build();
+
+
+        return ResponseEntity.ok(response);
+    }
+}
+✅ Step 9: DTO Classes (Login + AuthResponse)
+LoginRequestDto.java
+package com.advann.user_service.dto;
+
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+
+@Data
+public class LoginRequestDto {
+
+
+    @Email(message = "Invalid email format")
+    @NotBlank(message = "Email cannot be blank")
+    private String email;
+
+
+    @NotBlank(message = "Password cannot be blank")
+    private String password;
+}
+AuthResponseDto.java
+package com.advann.user_service.dto;
+
+
+import lombok.Builder;
+import lombok.Data;
+
+
+@Data
+@Builder
+public class AuthResponseDto {
+    private String token;
+    private String email;
+}
+✅ Step 10: AuthService Interface
+
+📍 File:
+com.advann.user_service.service.services.AuthService.java
+
+package com.advann.user_service.service.services;
+
+
+import com.advann.user_service.dto.AuthResponseDto;
+import com.advann.user_service.dto.LoginRequestDto;
+import com.advann.user_service.dto.RegisterRequestDto;
+
+
+public interface AuthService {
+
+
+    void register(RegisterRequestDto registerRequestDto);
+
+
+    AuthResponseDto login(LoginRequestDto loginRequestDto);
+}
+✅ Step 11: AuthServiceImpl
+
+📍 File:
+com.advann.user_service.service.serviceImpl.AuthServiceImpl.java
+
+package com.advann.user_service.service.serviceImpl;
+
+
+import com.advann.user_service.dto.AuthResponseDto;
+import com.advann.user_service.dto.LoginRequestDto;
+import com.advann.user_service.dto.RegisterRequestDto;
+import com.advann.user_service.entity.Role;
+import com.advann.user_service.entity.User;
+import com.advann.user_service.exception.EmailAlreadyExistsException;
+import com.advann.user_service.repository.UserRepository;
+import com.advann.user_service.security.jwt.JwtService;
+import com.advann.user_service.service.services.AuthService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+
+@Service
+@RequiredArgsConstructor
+public class AuthServiceImpl implements AuthService {
+
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final AuthenticationManager authenticationManager;
+
+
+    @Override
+    public void register(RegisterRequestDto registerRequestDto) {
+
+
+        if (userRepository.existsByEmail(registerRequestDto.getEmail())) {
+            throw new EmailAlreadyExistsException("Email already registered: " + registerRequestDto.getEmail());
+        }
+
+
+        User user = User.builder()
+                .username(registerRequestDto.getUsername())
+                .email(registerRequestDto.getEmail())
+                .password(passwordEncoder.encode(registerRequestDto.getPassword()))
+                .role(Role.CUSTOMER)
+                .build();
+
+
+        userRepository.save(user);
+    }
+
+
+    @Override
+    public AuthResponseDto login(LoginRequestDto loginRequestDto) {
+
+
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        loginRequestDto.getEmail(),
+                        loginRequestDto.getPassword()
+                )
+        );
+
+
+        String token = jwtService.generateToken(loginRequestDto.getEmail());
+
+
+        return AuthResponseDto.builder()
+                .email(loginRequestDto.getEmail())
+                .token(token)
+                .build();
+    }
+}
+✅ Final Testing in Postman
+✅ Register API
+
+POST:
+
+http://localhost:8083/api/auth/register
+
+Body:
+
+{
+  "username": "Sandip",
+  "email": "sandip@gmail.com",
+  "password": "123456"
+}
+✅ Login API
+
+POST:
+
+http://localhost:8083/api/auth/login
+
+Body:
+
+{
+  "email": "sandip@gmail.com",
+  "password": "123456"
+}
+
+Response:
+
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiJ9....",
+    "email": "sandip@gmail.com"
+  }
+}
+
+To check whether the token is working or not we will update UserController.java
+
+package com.advann.user_service.controller;
+
+import com.advann.user_service.payload.ApiResponse;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponse<String>> getProfile() {
+
+        ApiResponse<String> response = ApiResponse.<String>builder()
+                .success(true)
+                .message("Profile fetched successfully")
+                .data("This is protected user profile API")
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+}
+
+Now check in postman
+
+ 

@@ -1,0 +1,58 @@
+✅ DAY 4 GOAL
+
+By end of today you will be able to call Product APIs like this:
+
+Through Gateway (not directly):
+
+👉 http://localhost:8080/product-service/api/products
+
+Instead of:
+👉 http://localhost:8081/api/products
+
+=================================================================================
+
+✅ Step 1: Add Gateway Configuration (application.yml)
+
+Go to:
+
+📌 api-gateway/src/main/resources/application.yml
+
+Add this:
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+===========================================================================================
+
+✅ Step 2: Restart API Gateway
+✅ Step 3: Test Product Service Through Gateway
+
+Now open browser / Postman:
+
+GET API:
+
+👉 http://localhost:8080/product-service/api/products
+
+You should get list of products.
+
+
+Important Note : If its not running then check your po.xml configuration the version mismatch can happen.
+

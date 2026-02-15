@@ -1,0 +1,207 @@
+🔥 Now we’ll make your Product API enterprise level.
+
+We will implement:
+
+✅ Pagination
+✅ Sorting (asc/desc)
+✅ Search by keyword (name)
+✅ Filter by categoryId
+
+==========================================================================================
+
+✅ STEP 1: Update ProductRepository
+
+📌 ProductRepository.java
+
+package com.advann.product_service.repository;
+
+
+import com.advann.product_service.entity.Product;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+
+
+    // Search by product name
+    Page<Product> findByNameContainingIgnoreCase(String keyword, Pageable pageable);
+
+
+    // Filter by category
+    Page<Product> findByCategoryId(Long categoryId, Pageable pageable);
+
+
+    // Search + category filter combined
+    Page<Product> findByCategoryIdAndNameContainingIgnoreCase(Long categoryId, String keyword, Pageable pageable);
+}
+
+=============================================================================================
+
+✅ STEP 2: Create PaginationResponse DTO
+
+📌 dto/PagedResponseDto.java
+
+package com.advann.product_service.dto;
+
+
+import lombok.Builder;
+import lombok.Data;
+
+
+import java.util.List;
+
+
+@Data
+@Builder
+public class PagedResponseDto<T> {
+
+
+    private List<T> content;
+    private int pageNumber;
+    private int pageSize;
+    private long totalElements;
+    private int totalPages;
+    private boolean last;
+}
+
+================================================================================================
+
+✅ STEP 3: Update ProductService Interface
+
+📌 ProductService.java
+
+PagedResponseDto<ProductResponseDto> getAllProducts(
+        int page,
+        int size,
+        String sortBy,
+        String sortDir,
+        String keyword,
+        Long categoryId
+);
+
+=======================================================================================
+
+✅ STEP 4: Implement in ProductServiceImpl
+
+📌 ProductServiceImpl.java
+
+@Override
+public PagedResponseDto<ProductResponseDto> getAllProducts(
+        int page,
+        int size,
+        String sortBy,
+        String sortDir,
+        String keyword,
+        Long categoryId
+) {
+
+
+    Sort sort = sortDir.equalsIgnoreCase("desc")
+            ? Sort.by(sortBy).descending()
+            : Sort.by(sortBy).ascending();
+
+
+    Pageable pageable = PageRequest.of(page, size, sort);
+
+
+    Page<Product> productPage;
+
+
+    // ✅ category + keyword
+    if (categoryId != null && keyword != null && !keyword.isBlank()) {
+        productPage = productRepository.findByCategoryIdAndNameContainingIgnoreCase(categoryId, keyword, pageable);
+    }
+    // ✅ only category filter
+    else if (categoryId != null) {
+        productPage = productRepository.findByCategoryId(categoryId, pageable);
+    }
+    // ✅ only keyword search
+    else if (keyword != null && !keyword.isBlank()) {
+        productPage = productRepository.findByNameContainingIgnoreCase(keyword, pageable);
+    }
+    // ✅ normal pagination
+    else {
+        productPage = productRepository.findAll(pageable);
+    }
+
+
+    List<ProductResponseDto> products = productPage.getContent()
+            .stream()
+            .map(product -> ProductResponseDto.builder()
+                    .id(product.getId())
+                    .name(product.getName())
+                    .price(product.getPrice())
+                    .quantity(product.getQuantity())
+                    .categoryId(product.getCategory().getId())
+                    .categoryName(product.getCategory().getName())
+                    .build()
+            )
+            .toList();
+
+
+    return PagedResponseDto.<ProductResponseDto>builder()
+            .content(products)
+            .pageNumber(productPage.getNumber())
+            .pageSize(productPage.getSize())
+            .totalElements(productPage.getTotalElements())
+            .totalPages(productPage.getTotalPages())
+            .last(productPage.isLast())
+            .build();
+}
+
+==============================================================================================================
+
+✅ STEP 5: Update ProductController
+
+📌 ProductController.java
+
+Replace your getAllProducts API with this:
+
+@GetMapping
+public ResponseEntity<ApiResponse<PagedResponseDto<ProductResponseDto>>> getAllProducts(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "5") int size,
+        @RequestParam(defaultValue = "id") String sortBy,
+        @RequestParam(defaultValue = "asc") String sortDir,
+        @RequestParam(required = false) String keyword,
+        @RequestParam(required = false) Long categoryId
+) {
+
+
+    PagedResponseDto<ProductResponseDto> responseDto =
+            productService.getAllProducts(page, size, sortBy, sortDir, keyword, categoryId);
+
+
+    return ResponseEntity.ok(
+            ApiResponse.<PagedResponseDto<ProductResponseDto>>builder()
+                    .success(true)
+                    .message("Products fetched successfully")
+                    .data(responseDto)
+                    .build()
+    );
+}
+
+==================================================================================================================
+
+✅ STEP 6: Test APIs in Postman
+✅ Normal Pagination
+
+GET /api/products?page=0&size=2
+
+✅ Sorting by Price Desc
+
+GET /api/products?page=0&size=5&sortBy=price&sortDir=desc
+
+✅ Search Product
+
+GET /api/products?keyword=iphone
+
+✅ Filter by Category
+
+GET /api/products?categoryId=2
+
+✅ Category + Search Together
+
+GET /api/products?categoryId=2&keyword=iphone

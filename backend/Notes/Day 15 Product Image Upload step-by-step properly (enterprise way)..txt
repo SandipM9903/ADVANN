@@ -1,0 +1,241 @@
+✅ STEP 1: Decide Image Storage Approach
+
+In real projects we usually do:
+
+Option A (Best for now)
+
+✅ Store image in local folder inside server
+✅ Save only image path/url in DB
+
+Later we can move to AWS S3 easily.
+
+So we will do:
+
+📌 Upload Image → Save in folder → Store imageName/path in DB → Return image URL
+
+=====================================================================================================
+
+✅ STEP 2: Update Product Entity (Add Image Field)
+
+In your Product entity add:
+
+@Column(name = "image_url")
+private String imageUrl;
+
+or if you want store only file name:
+
+@Column(name = "image_name")
+private String imageName;
+
+💡 Best practice: store full URL or relative path.
+We will store relative path like:
+
+/uploads/products/iphone.png
+
+So add:
+
+@Column(name = "image_path")
+private String imagePath;
+
+===========================================================================================
+
+✅ STEP 3: Update Product DTO
+
+In your ProductResponseDTO add:
+
+private String imagePath;
+
+And in mapping also include it.
+
+===========================================================================================
+
+✅ STEP 4: Create Upload Directory in Project
+
+Inside your project create folder:
+
+uploads/products/
+
+This is where images will be saved.
+
+============================================================================================
+
+✅ STEP 5: Create API Endpoint for Upload
+
+We will create API:
+
+Upload Image API
+POST /api/products/{productId}/upload-image
+
+Multipart body:
+
+file = image
+
+=============================================================================================
+
+✅ STEP 6: Controller Code
+
+Create in ProductController:
+
+@PostMapping("/{productId}/upload-image")
+public ResponseEntity<ApiResponse<ProductResponseDTO>> uploadProductImage(
+        @PathVariable Long productId,
+        @RequestParam("file") MultipartFile file
+) {
+    ProductResponseDTO response = productService.uploadProductImage(productId, file);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Image uploaded successfully", response));
+}
+
+=============================================================================================
+
+✅ STEP 7: Service Interface
+
+In ProductService:
+
+ProductResponseDTO uploadProductImage(Long productId, MultipartFile file);
+
+=============================================================================================
+
+✅ STEP 8: Service Implementation Logic
+
+In ProductServiceImpl:
+
+@Override
+public ProductResponseDTO uploadProductImage(Long productId, MultipartFile file) {
+
+
+    Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+
+    if (file.isEmpty()) {
+        throw new RuntimeException("File is empty");
+    }
+
+
+    String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+
+
+    String uploadDir = "uploads/products/";
+    File directory = new File(uploadDir);
+
+
+    if (!directory.exists()) {
+        directory.mkdirs();
+    }
+
+
+    Path filePath = Paths.get(uploadDir + fileName);
+
+
+    try {
+        Files.write(filePath, file.getBytes());
+    } catch (IOException e) {
+        throw new RuntimeException("Failed to upload image: " + e.getMessage());
+    }
+
+
+    String imagePath = "/uploads/products/" + fileName;
+
+
+    product.setImagePath(imagePath);
+    productRepository.save(product);
+
+
+    return modelMapper.map(product, ProductResponseDTO.class);
+}
+
+==================================================================================================
+
+✅ STEP 9: Allow Access to Uploaded Images
+
+Now the main issue:
+
+If you save image in folder, frontend cannot access it unless Spring Boot serves it.
+
+So we need to configure:
+
+📌 WebMvcConfigurer
+
+===================================================================================================
+
+✅ STEP 10: Create Config to Serve Images
+
+Create file:
+
+config/WebConfig.java
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/uploads/**")
+                .addResourceLocations("file:uploads/");
+    }
+}
+
+Now if image stored in:
+
+uploads/products/abc.png
+
+Then browser can access:
+
+http://localhost:8081/uploads/products/abc.png
+
+====================================================================================================
+
+✅ STEP 11: Test in Postman
+Upload Image API
+
+POST
+
+http://localhost:8081/api/products/1/upload-image
+
+Go to Body → form-data
+
+Key: file
+Type: File
+Choose any image
+
+Then send.
+
+Expected Response:
+
+{
+    "success": true,
+    "message": "Image uploaded successfully",
+    "data": {
+        "id": 1,
+        "name": "iPhone 15 Cover",
+        "price": 499.00,
+        "quantity": 50,
+        "categoryId": 2,
+        "categoryName": "Mobile Covers",
+        "imagePath": "/uploads/products/1770741934842_iphone 16.jpg"
+    }
+}
+
+=========================================================================================================
+
+✅ STEP 12: Test Image in Browser
+
+Copy imagePath:
+
+/uploads/products/1770741934842_iphone 16.jpg
+
+Open:
+
+http://localhost:8081/uploads/products/1770741934842_iphone 16.jpg
+
+If image opens = SUCCESS ✅🔥
+
+{
+  "success": true,
+  "message": "Image uploaded successfully",
+  "data": {
+    "id": 1,
+    "name": "iPhone 16 Cover",
+    "imagePath": "/uploads/products/1700000_iphone.png"
+  }
+}

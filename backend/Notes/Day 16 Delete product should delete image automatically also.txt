@@ -1,0 +1,87 @@
+Now when product is deleted, its image file should also be deleted automatically.
+
+✅ Goal
+
+When calling:
+
+DELETE /api/products/{productId}
+
+It should:
+
+✅ delete product image file from uploads folder
+✅ delete product from DB
+✅ return success response
+
+✅ Step 1: Update deleteProduct() Service Method
+
+In ProductServiceImpl update your delete method like this:
+
+@Override
+public void deleteProduct(Long id) {
+
+        log.info("Deleting product with id: {}", id);
+
+        Product existing = productRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("Cannot delete. Product not found with id: {}", id);
+                    return new ResourceNotFoundException("Product not found with id: " + id);
+                });
+
+        // ✅ delete image file if exists
+        deleteOldImageIfExists(existing);
+
+        // ✅ delete product from DB
+        productRepository.delete(existing);
+
+        log.info("Product deleted successfully with id: {}", id);
+    }
+
+✅ Step 2: Make deleteOldImageIfExists() safe
+
+Use this method:
+
+private void deleteOldImageIfExists(Product product) {
+
+        if (product.getImagePath() == null || product.getImagePath().isBlank()) {
+            log.info("No image found for product id: {}", product.getId());
+            return;
+        }
+
+        String fullPath = System.getProperty("user.dir") + product.getImagePath().replace("/", File.separator);
+        File file = new File(fullPath);
+
+        if (!file.exists()) {
+            log.warn("Image file not found in directory: {}", fullPath);
+            return;
+        }
+
+        boolean deleted = file.delete();
+
+        if (deleted) {
+            log.info("Image deleted successfully: {}", fullPath);
+        } else {
+            log.error("Failed to delete image file: {}", fullPath);
+            throw new InvalidFileException("Failed to delete product image from server.");
+        }
+    }
+✅ Step 3: Controller (No change needed)
+
+Your delete API will remain same like:
+
+@DeleteMapping("/{productId}")
+public ResponseEntity<ApiResponse<Object>> deleteProduct(@PathVariable Long productId) {
+
+
+    productService.deleteProduct(productId);
+
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Product deleted successfully", null));
+}
+✅ Testing
+Delete product:
+DELETE http://localhost:8081/api/products/5
+
+Now:
+
+✅ Product deleted from DB
+✅ Image deleted from folder

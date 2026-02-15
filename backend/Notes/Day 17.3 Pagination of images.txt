@@ -1,0 +1,109 @@
+Perfect Sandip 🔥 let’s implement Pagination for Gallery Images properly.
+
+We will create API:
+
+✅ GET /api/products/{productId}/images?page=0&size=5&sortDir=desc
+
+and return paginated response like your PagedResponseDto.
+
+✅ Step 1: Update Repository
+
+In ProductImageRepository add:
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+
+Page<ProductImage> findByProductId(Long productId, Pageable pageable);
+
+So full addition:
+
+Page<ProductImage> findByProductId(Long productId, Pageable pageable);
+✅ Step 2: Add Service Method
+
+In ProductService interface add:
+
+PagedResponseDto<ProductImageResponseDto> getProductImagesWithPagination(Long productId, int page, int size, String sortDir);
+✅ Step 3: Implement in ProductServiceImpl
+
+Add this method:
+
+@Override
+public PagedResponseDto<ProductImageResponseDto> getProductImagesWithPagination(Long productId, int page, int size, String sortDir) {
+
+
+    productRepository.findById(productId)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+
+    Sort sort = sortDir.equalsIgnoreCase("desc")
+            ? Sort.by("createdAt").descending()
+            : Sort.by("createdAt").ascending();
+
+
+    Pageable pageable = PageRequest.of(page, size, sort);
+
+
+    Page<ProductImage> imagePage = productImageRepository.findByProductId(productId, pageable);
+
+
+    List<ProductImageResponseDto> images = imagePage.getContent()
+            .stream()
+            .map(img -> ProductImageResponseDto.builder()
+                    .id(img.getId())
+                    .imagePath(img.getImagePath())
+                    .imageUrl(buildImageUrl(img.getImagePath()))
+                    .build())
+            .toList();
+
+
+    return PagedResponseDto.<ProductImageResponseDto>builder()
+            .content(images)
+            .pageNumber(imagePage.getNumber())
+            .pageSize(imagePage.getSize())
+            .totalElements(imagePage.getTotalElements())
+            .totalPages(imagePage.getTotalPages())
+            .last(imagePage.isLast())
+            .build();
+}
+✅ Step 4: Add Controller API
+
+In your ProductController add:
+
+@GetMapping("/{productId}/images/paged")
+public ResponseEntity<ApiResponse<PagedResponseDto<ProductImageResponseDto>>> getProductImagesPaged(
+        @PathVariable Long productId,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "5") int size,
+        @RequestParam(defaultValue = "desc") String sortDir
+) {
+
+
+    PagedResponseDto<ProductImageResponseDto> response =
+            productService.getProductImagesWithPagination(productId, page, size, sortDir);
+
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Product images fetched successfully", response));
+}
+✅ Step 5: Test in Postman
+Request:
+GET http://localhost:8081/api/products/2/images/paged?page=0&size=3&sortDir=desc
+✅ Sample Response
+{
+  "success": true,
+  "message": "Product images fetched successfully",
+  "data": {
+    "content": [
+      {
+        "id": 10,
+        "imagePath": "/uploads/products/gallery/177082.jpg",
+        "imageUrl": "http://localhost:8081/uploads/products/gallery/177082.jpg"
+      }
+    ],
+    "pageNumber": 0,
+    "pageSize": 3,
+    "totalElements": 8,
+    "totalPages": 3,
+    "last": false
+  }
+}

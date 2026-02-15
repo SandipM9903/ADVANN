@@ -1,0 +1,35 @@
+Right now base URL is hardcoded:
+
+"http://localhost:8081"
+
+But in production it will change (server, gateway, cloud, etc.)
+
+So we should take it from application.yml.
+
+✅ Step 1: Add in application.yml
+app:
+  base-url: http://localhost:8081
+✅ Step 2: Inject it in Service
+
+In your ProductServiceImpl:
+
+@Value("${app.base-url}")
+private String baseUrl;
+
+Import:
+
+import org.springframework.beans.factory.annotation.Value;
+✅ Step 3: Update buildImageUrl()
+private String buildImageUrl(String imagePath) {
+
+
+    if (imagePath == null || imagePath.isBlank()) {
+        return baseUrl + "/uploads/products/default.png";
+    }
+
+
+    return baseUrl + imagePath;
+}
+✅ Now your project becomes production ready 💯
+
+If tomorrow port changes or gateway comes, you just update YAML.

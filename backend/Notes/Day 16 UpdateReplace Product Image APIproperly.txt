@@ -1,0 +1,138 @@
+Actually your current upload API already replaces image (because you delete old image), but we will make it clean and professional with a dedicated endpoint.
+
+✅ Goal
+
+API:
+
+PUT /api/products/{productId}/update-image
+
+It will:
+
+✅ validate file
+✅ delete old image if exists
+✅ upload new image
+✅ update DB
+✅ return updated Product DTO with imageUrl
+
+✅ Step 1: Add API in Controller
+@PutMapping("/{productId}/update-image")
+public ResponseEntity<ApiResponse<ProductResponseDto>> updateProductImage(
+        @PathVariable Long productId,
+        @RequestParam("file") MultipartFile file
+) {
+    ProductResponseDto response = productService.updateProductImage(productId, file);
+
+
+    return ResponseEntity.ok(
+            new ApiResponse<>(true, "Product image updated successfully", response)
+    );
+}
+✅ Step 2: Add method in Service Interface
+ProductResponseDto updateProductImage(Long productId, MultipartFile file);
+✅ Step 3: Implement in ServiceImpl
+@Override
+public ProductResponseDto updateProductImage(Long productId, MultipartFile file) {
+
+
+    Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+
+    validateImageFile(file);
+
+
+    // delete old image if exists
+    deleteOldImageIfExists(product);
+
+
+    String uploadDir = System.getProperty("user.dir") + "/uploads/products/";
+    File directory = new File(uploadDir);
+
+
+    if (!directory.exists()) {
+        directory.mkdirs();
+    }
+
+
+    String originalFileName = file.getOriginalFilename();
+    if (originalFileName == null || originalFileName.isBlank()) {
+        throw new InvalidFileException("Invalid file name.");
+    }
+
+
+    originalFileName = originalFileName.replaceAll("\\s+", "_");
+
+
+    // Extract extension
+    String extension = "";
+    int lastDotIndex = originalFileName.lastIndexOf(".");
+    if (lastDotIndex > 0) {
+        extension = originalFileName.substring(lastDotIndex);
+    }
+
+
+    String fileName = System.currentTimeMillis() + "_" + productId + extension;
+
+
+    Path filePath = Paths.get(uploadDir).resolve(fileName);
+
+
+    try {
+        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+    } catch (IOException e) {
+        throw new InvalidFileException("Failed to update product image.");
+    }
+
+
+    String imagePath = "/uploads/products/" + fileName;
+    product.setImagePath(imagePath);
+
+
+    Product savedProduct = productRepository.save(product);
+
+
+    ProductResponseDto dto = modelMapper.map(savedProduct, ProductResponseDto.class);
+    dto.setImageUrl(buildImageUrl(savedProduct.getImagePath()));
+
+
+    return dto;
+}
+✅ Step 4: Reuse existing deleteOldImageIfExists()
+
+Make sure your method is like:
+
+private void deleteOldImageIfExists(Product product) {
+
+
+    if (product.getImagePath() != null && !product.getImagePath().isBlank()) {
+
+
+        String fullPath = System.getProperty("user.dir") + product.getImagePath().replace("/", File.separator);
+        File oldFile = new File(fullPath);
+
+
+        if (oldFile.exists()) {
+            oldFile.delete();
+        }
+    }
+}
+
+✅ Step 5: Test in Postman
+PUT Request
+PUT http://localhost:8081/api/products/2/update-image
+
+Body → form-data:
+
+key	type	value
+file	File	choose image
+✅ Response Example
+{
+  "success": true,
+  "message": "Product image updated successfully",
+  "data": {
+    "id": 2,
+    "name": "iPhone 17 Cover",
+    "imagePath": "/uploads/products/1770900000000_2.jpg",
+    "imageUrl": "http://localhost:8081/uploads/products/1770900000000_2.jpg"
+  }
+}

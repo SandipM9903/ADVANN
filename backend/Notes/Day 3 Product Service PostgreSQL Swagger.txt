@@ -1,0 +1,465 @@
+🟦 Step 1: Create Database in PostgreSQL
+
+Open pgAdmin or psql and create DB:
+
+CREATE DATABASE advann_db;
+
+===========================================================
+
+🟦 Step 2: Create Spring Boot Project (product-service)
+
+Go to Spring Initializr and create:
+
+Project Details
+Group: com.shopsphere
+Artifact: product-service
+Name: product-service
+Java: 17
+Maven
+
+Dependencies (Important)
+✅ Spring Web
+✅ Spring Data JPA
+✅ PostgreSQL Driver
+✅ Eureka Discovery Client
+✅ Lombok
+✅ Validation
+
+(Optional but recommended)
+✅ Spring Boot DevTools
+
+============================================================
+
+🟦 Step 3: Add application.properties
+
+File:
+product-service/src/main/resources/application.properties
+
+server:
+  port: 8081
+
+spring:
+  application:
+    name: product-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/advann_db
+    username: pgadmin
+    password: root
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+===============================================================
+
+🟦 Step 4: Add Swagger Dependency (OpenAPI)
+
+In pom.xml, add this dependency:
+
+<dependency>
+    <groupId>org.springdoc</groupId>
+    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+    <version>2.5.0</version>
+</dependency>
+
+What is the use of Swagger Dependency: Swagger dependency is used in Spring Boot projects to generate automatic API documentation for REST APIs. It provides a user-friendly interface (Swagger UI) where developers can view all available endpoints, request parameters, response formats, and HTTP methods. It also allows testing APIs directly from the browser without using Postman. Swagger helps in improving API clarity, collaboration between backend and frontend teams, and keeps documentation updated as the code changes.
+
+===============================================================
+
+🟦 Step 5: Create Product Entity
+
+Create package:
+
+📌 com.shopsphere.productservice.entity
+
+Product.java
+
+package com.shopsphere.productservice.entity;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Entity
+@Table(name = "products")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Product {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotBlank(message = "Product name is required")
+    @Column(nullable = false)
+    private String name;
+
+    @NotNull(message = "Price is required")
+    @Column(nullable = false)
+    private BigDecimal price;
+
+    @NotNull(message = "Quantity is required")
+    @Column(nullable = false)
+    private Integer quantity;
+}
+
+****
+@Builder is a Lombok annotation used to create objects using the Builder Design Pattern. It provides a clean and readable way to initialize an object by setting values step by step using ClassName.builder() and finally calling .build(). It is very useful when a class has many fields because it avoids long constructors and reduces confusion about parameter order.
+****
+
+****
+why we have use Integer not int private Integer quantity?
+
+In JPA entities, we use Integer instead of int because Integer is a wrapper class that can store null, while int cannot. Database columns may contain NULL values, and using Integer helps Hibernate/JPA properly handle missing values. It is also useful to detect whether the value was not provided in an API request, whereas int will automatically take default value 0.
+****
+
+========================================================================================================
+
+🟦 Step 6: Create Repository
+
+📌 com.shopsphere.productservice.repository
+
+ProductRepository.java
+
+package com.advann.product_service.repository;
+
+import com.advann.product_service.entity.Product;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+}
+
+=========================================================================================================
+
+🟦 Step 7: Create Service Layer
+
+📌 com.shopsphere.productservice.service
+
+ProductService.java
+package com.shopsphere.productservice.service;
+
+import com.shopsphere.productservice.entity.Product;
+import java.util.List;
+
+
+public interface ProductService {
+    Product addProduct(Product product);
+    List<Product> getAllProducts();
+    Product getProductById(Long id);
+    Product updateProduct(Long id, Product product);
+    void deleteProduct(Long id);
+}
+
+
+📌 com.shopsphere.productservice.service.impl
+
+ProductServiceImpl.java
+package com.shopsphere.productservice.service.impl;
+
+
+import com.shopsphere.productservice.entity.Product;
+import com.shopsphere.productservice.repository.ProductRepository;
+import com.shopsphere.productservice.service.ProductService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+
+import java.util.List;
+
+
+@Service
+@RequiredArgsConstructor
+public class ProductServiceImpl implements ProductService {
+
+
+    private final ProductRepository productRepository;
+
+
+    @Override
+    public Product addProduct(Product product) {
+        return productRepository.save(product);
+    }
+
+
+    @Override
+    public List<Product> getAllProducts() {
+        return productRepository.findAll();
+    }
+
+
+    @Override
+    public Product getProductById(Long id) {
+        return productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+    }
+
+
+    @Override
+    public Product updateProduct(Long id, Product product) {
+        Product existing = getProductById(id);
+
+
+        existing.setName(product.getName());
+        existing.setPrice(product.getPrice());
+        existing.setQuantity(product.getQuantity());
+
+
+        return productRepository.save(existing);
+    }
+
+
+    @Override
+    public void deleteProduct(Long id) {
+        Product existing = getProductById(id);
+        productRepository.delete(existing);
+    }
+}
+
+👉 @RequiredArgsConstructor is used to generate constructor automatically and support clean constructor-based dependency injection, reducing boilerplate code.
+
+=============================================================================================================
+
+🟦 Step 8: Create Controller
+
+📌 com.shopsphere.productservice.controller
+
+ProductController.java
+
+package com.shopsphere.productservice.controller;
+
+import com.shopsphere.productservice.entity.Product;
+import com.shopsphere.productservice.service.ProductService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/products")
+@RequiredArgsConstructor
+public class ProductController {
+
+    private final ProductService productService;
+
+    @PostMapping
+    public Product addProduct(@Valid @RequestBody Product product) {
+        return productService.addProduct(product);
+    }
+
+    @GetMapping
+    public List<Product> getAllProducts() {
+        return productService.getAllProducts();
+    }
+
+    @GetMapping("/{id}")
+    public Product getProductById(@PathVariable Long id) {
+        return productService.getProductById(id);
+    }
+
+    @PutMapping("/{id}")
+    public Product updateProduct(@PathVariable Long id, @Valid @RequestBody Product product) {
+        return productService.updateProduct(id, product);
+    }
+
+    @DeleteMapping("/{id}")
+    public String deleteProduct(@PathVariable Long id) {
+        productService.deleteProduct(id);
+        return "Product deleted successfully";
+    }
+}
+
+
+****
+We can use custom exceptions below is the way how we can create custom exceptions:
+
+✅ Step 1: Create Custom Exception Class
+
+📌 Package: com.advann.product_service.exceptions
+
+ProductNotFoundException.java
+
+package com.advann.product_service.exceptions;
+
+public class ProductNotFoundException extends RuntimeException {
+
+    public ProductNotFoundException(String message) {
+        super(message);
+    }
+}
+
+✅ Step 2: Use this Exception in Service
+
+Update your getProductById() method:
+
+import com.advann.product_service.exceptions.ProductNotFoundException;
+
+@Override
+public Product getProductById(Long id) {
+    return productRepository.findById(id)
+            .orElseThrow(() -> new ProductNotFoundException("Product not found with id: " + id));
+}
+
+✅ Step 3: Create Global Exception Handler (Best Practice)
+
+📌 Package: com.advann.product_service.exceptions
+
+GlobalExceptionHandler.java
+
+package com.advann.product_service.exceptions;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ProductNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleProductNotFound(ProductNotFoundException ex) {
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.NOT_FOUND.value());
+        response.put("error", "Product Not Found");
+        response.put("message", ex.getMessage());
+
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+}
+
+✅ Step 4: Output Example (When product not found)
+
+If you call:
+
+GET /products/100
+
+You will get response like:
+
+{
+  "timestamp": "2026-02-06T09:10:00",
+  "status": 404,
+  "error": "Product Not Found",
+  "message": "Product not found with id: 100"
+}
+
+
+@RestControllerAdvice is used to handle exceptions globally in a Spring Boot REST API.
+
+✅ Why we use @RestControllerAdvice?
+
+Instead of writing try-catch in every controller/service, you write one common class and Spring will automatically catch exceptions from all controllers.
+****
+
+=======================================================================================================================
+
+🟦 Step 8: Create Controller
+
+📌 com.shopsphere.productservice.controller
+
+ProductController.java
+
+package com.shopsphere.productservice.controller;
+
+import com.shopsphere.productservice.entity.Product;
+import com.shopsphere.productservice.service.ProductService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/products")
+@RequiredArgsConstructor
+public class ProductController {
+
+    private final ProductService productService;
+
+    @PostMapping
+    public ResponseEntity<Product> addProduct(@Valid @RequestBody Product product) {
+        Product savedProduct = productService.addProduct(product);
+        return new ResponseEntity<>(savedProduct, HttpStatus.CREATED);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Product>> getAllProducts() {
+        List<Product> products = productService.getAllProducts();
+        return ResponseEntity.ok(products);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Product> getProductById(@PathVariable Long id) {
+        Product product = productService.getProductById(id);
+        return ResponseEntity.ok(product);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Product> updateProduct(@PathVariable Long id, @Valid @RequestBody Product product) {
+        Product updatedProduct = productService.updateProduct(id, product);
+        return ResponseEntity.ok(updatedProduct);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteProduct(@PathVariable Long id) {
+        productService.deleteProduct(id);
+        return ResponseEntity.ok("Product deleted successfully");
+    }
+}
+
+============================================================================================================
+
+🟦 Step 9: Run Product Service
+
+Before running, ensure:
+
+✅ Eureka running
+✅ API Gateway running
+✅ PostgreSQL running
+
+🟦 Step 10: Verify in Eureka
+
+Go to:
+
+👉 http://localhost:8761
+
+Now you should see:
+
+✅ PRODUCT-SERVICE
+
+🟦 Step 11: Verify Swagger UI
+
+Open:
+
+👉 http://localhost:8081/swagger-ui/index.html
+
+You should see all product APIs.
+
+🟦 Step 12: Test APIs in Swagger
+Test POST:
+
+{
+  "name": "iPhone Cover",
+  "price": 299.99,
+  "quantity": 50
+}

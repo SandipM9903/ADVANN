@@ -1,0 +1,348 @@
+🎯 Goal
+
+If user logs out, then:
+
+✅ Refresh token revoked
+✅ Access token also blacklisted
+✅ Any request with that access token should return 401 Unauthorized
+
+======================================================================================================
+
+✅ STEP 1: Create BlacklistedToken Entity
+
+📌 com.advann.user_service.entity.BlacklistedToken
+
+package com.advann.user_service.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "blacklisted_tokens")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class BlacklistedToken {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 500)
+    private String token;
+
+    @Column(nullable = false)
+    private Instant expiryDate;
+}
+
+===========================================================================================
+
+
+✅ STEP 2: Create BlacklistedTokenRepository
+
+📌 com.advann.user_service.repository.BlacklistedTokenRepository
+
+package com.advann.user_service.repository;
+
+
+import com.advann.user_service.entity.BlacklistedToken;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+
+public interface BlacklistedTokenRepository extends JpaRepository<BlacklistedToken, Long> {
+
+
+    boolean existsByToken(String token);
+}
+
+==============================================================================================
+
+✅ STEP 3: Create TokenBlacklistService
+
+📌 com.advann.user_service.service.services.TokenBlacklistService
+
+package com.advann.user_service.service.services;
+
+public interface TokenBlacklistService {
+
+    void blacklistToken(String token);
+
+    boolean isBlacklisted(String token);
+}
+
+=================================================================================================
+
+✅ STEP 4: Implement TokenBlacklistServiceImpl
+
+📌 com.advann.user_service.service.serviceImpl.TokenBlacklistServiceImpl
+
+package com.advann.user_service.service.serviceImpl;
+
+
+import com.advann.user_service.entity.BlacklistedToken;
+import com.advann.user_service.repository.BlacklistedTokenRepository;
+import com.advann.user_service.security.jwt.JwtService;
+import com.advann.user_service.service.services.TokenBlacklistService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+
+import java.time.Instant;
+import java.util.Date;
+
+
+@Service
+@RequiredArgsConstructor
+public class TokenBlacklistServiceImpl implements TokenBlacklistService {
+
+
+    private final BlacklistedTokenRepository blacklistedTokenRepository;
+    private final JwtService jwtService;
+
+
+    @Override
+    public void blacklistToken(String token) {
+
+
+        Date expiry = jwtService.extractExpiration(token);
+
+
+        BlacklistedToken blacklistedToken = BlacklistedToken.builder()
+                .token(token)
+                .expiryDate(expiry.toInstant())
+                .build();
+
+
+        blacklistedTokenRepository.save(blacklistedToken);
+    }
+
+
+    @Override
+    public boolean isBlacklisted(String token) {
+        return blacklistedTokenRepository.existsByToken(token);
+    }
+}
+
+============================================================================================
+
+✅ STEP 5: Update JwtAuthFilter to Check Blacklist
+
+Your JwtAuthFilter currently checks only token validity.
+
+Now update it like this:
+
+📌 com.advann.user_service.security.jwt.JwtAuthFilter
+
+Add TokenBlacklistService dependency:
+private final TokenBlacklistService tokenBlacklistService;
+Full Updated Filter Logic:
+
+package com.advann.user_service.security.jwt;
+
+import com.advann.user_service.service.services.TokenBlacklistService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+@Component
+@RequiredArgsConstructor
+public class JwtAuthFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+    private final CustomUserDetailsService userDetailsService;
+    private final TokenBlacklistService tokenBlacklistService;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
+
+        String authHeader = request.getHeader("Authorization");
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String token = authHeader.substring(7);
+
+        // ✅ CHECK BLACKLIST
+        if (tokenBlacklistService.isBlacklisted(token)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Access token is blacklisted. Please login again.");
+            return;
+        }
+
+        String username = jwtService.extractUsername(token);
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+            if (jwtService.isTokenValid(token, userDetails)) {
+
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
+
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+}
+
+======================================================================================================
+
+✅ STEP 6: Update Logout API to Blacklist Access Token
+
+Now logout should revoke refresh token AND blacklist access token.
+
+📌 Update your AuthController
+
+Update logout endpoint like this:
+
+@PostMapping("/logout")
+public ResponseEntity<ApiResponse<String>> logout(
+        @RequestHeader("Authorization") String authHeader,
+        @Valid @RequestBody RefreshTokenRequestDto requestDto) {
+
+    String accessToken = authHeader.substring(7);
+
+    authService.logout(requestDto.getRefreshToken(), accessToken);
+
+    ApiResponse<String> response = ApiResponse.<String>builder()
+            .success(true)
+            .message("Logout successful")
+            .data("Refresh token revoked + Access token blacklisted")
+            .build();
+
+    return ResponseEntity.ok(response);
+}
+
+================================================================================
+
+✅ STEP 7: Update AuthService
+
+📌 AuthService
+
+void logout(String refreshToken, String accessToken);
+
+============================================================================
+
+✅ STEP 8: Update AuthServiceImpl logout()
+
+📌 AuthServiceImpl
+
+Inject TokenBlacklistService:
+
+private final TokenBlacklistService tokenBlacklistService;
+
+Now update logout:
+
+@Override
+public void logout(String refreshToken, String accessToken) {
+
+
+    refreshTokenService.revokeToken(refreshToken);
+
+
+    tokenBlacklistService.blacklistToken(accessToken);
+}
+
+================================================================================
+
+Now Check in POSTMAN:
+
+First Login : 
+
+POST : http://localhost:8083/api/auth/login
+--------------------------------------------------------
+
+body :
+
+{
+  "email": "sandipmondal990355@gmail.com",
+  "password": "Sandip@1234"
+}
+------------------------------------------------------
+
+Response : 
+
+{
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzYW5kaXBtb25kYWw5OTAzNTVAZ21haWwuY29tIiwiaWF0IjoxNzcwNjUyODIxLCJleHAiOjE3NzA2NTM3MjF9.crPUtQ_AMNrZWkh5acygCTdy3ctWX62Lbyt510HMxsY",
+        """: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzYW5kaXBtb25kYWw5OTAzNTVAZ21haWwuY29tIiwiaWF0IjoxNzcwNjUyODIxLCJleHAiOjE3NzEyNTc2MjF9.2IOjxTlLkK6BAkzoux9z5yVkiUunyCgWMlkYS7NrcRs",
+        "email": "sandipmondal990355@gmail.com"
+    }
+}
+
+-------------------------------------------------------
+
+Now Test :
+
+GET : http://localhost:8083/api/admin/test
+
+Bearer Token : accessToken
+
+Response : 
+
+Hello Admin, You are authorized!
+
+-------------------------------------------------------
+
+Now Logout :
+
+POST : http://localhost:8083/api/auth/logout
+
+Bearer Token : accessToken
+
+body : 
+{
+	"refreshToken" : "past the refrest token"
+}
+
+Response : 
+
+{
+    "success": true,
+    "message": "Logout successful",
+    "data": "Refresh token revoked + Access token blacklisted"
+}
+
+---------------------------------------------------------
+
+Now again test with that old accessToken
+
+GET : http://localhost:8083/api/admin/test
+
+Bearer Token : accessToken
+
+Response : 
+
+Access token is blacklisted. Please login again.
+
+----------------------------------------------------------
+

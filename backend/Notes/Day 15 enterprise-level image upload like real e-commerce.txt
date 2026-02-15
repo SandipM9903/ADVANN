@@ -1,0 +1,233 @@
+Niceee 🔥 Sandip! Now we’ll make it enterprise-level image upload like real e-commerce.
+
+We will implement:
+
+✅ Only JPG/PNG allowed
+✅ Max file size (2MB)
+✅ Delete old image if already exists
+✅ Store proper imagePath
+✅ Return full imageUrl in response
+
+✅ STEP 1: Add Config in application.properties
+
+Add this:
+
+spring.servlet.multipart.max-file-size=2MB
+spring.servlet.multipart.max-request-size=2MB
+
+===================================================================================================
+
+✅ STEP 2: Create Utility Validation Method (Best Practice)
+
+Inside ProductServiceImpl (or separate util class later), add validation:
+
+private void validateImageFile(MultipartFile file) {
+
+    if (file == null || file.isEmpty()) {
+        throw new RuntimeException("Please upload a valid image file");
+    }
+
+    String contentType = file.getContentType();
+
+    if (!(contentType.equals("image/jpeg") || contentType.equals("image/png"))) {
+        throw new RuntimeException("Only JPG and PNG images are allowed");
+    }
+
+    long maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.getSize() > maxSize) {
+        throw new RuntimeException("File size must be less than 2MB");
+    }
+}
+
+======================================================================================================
+
+✅ STEP 3: Fix Upload Directory Path (Correct Way)
+
+Instead of:
+
+String uploadDir = "uploads/products/";
+
+Use:
+
+String uploadDir = System.getProperty("user.dir") + "/uploads/products/";
+
+This ensures image always stores inside project root.
+
+=======================================================================================================
+
+✅ STEP 4: Delete Old Image (If Exists)
+
+Before saving new image:
+
+private void deleteOldImageIfExists(Product product) {
+
+
+    if (product.getImagePath() != null) {
+        String oldPath = product.getImagePath();  
+        // oldPath = /uploads/products/abc.jpg
+
+
+        String fullOldPath = System.getProperty("user.dir") + oldPath;
+
+
+        File oldFile = new File(fullOldPath);
+
+
+        if (oldFile.exists()) {
+            oldFile.delete();
+        }
+    }
+}
+
+===================================================================================================
+
+✅ STEP 5: Update uploadProductImage() Properly
+
+Replace your upload method with this:
+
+@Override
+public ProductResponseDTO uploadProductImage(Long productId, MultipartFile file) {
+
+    Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+    validateImageFile(file);
+
+    // delete old image if exists
+    deleteOldImageIfExists(product);
+
+    String uploadDir = System.getProperty("user.dir") + "/uploads/products/";
+    File directory = new File(uploadDir);
+
+    if (!directory.exists()) {
+        directory.mkdirs();
+    }
+
+    String originalFileName = file.getOriginalFilename();
+    String fileName = System.currentTimeMillis() + "_" + originalFileName;
+
+    Path filePath = Paths.get(uploadDir + fileName);
+
+    try {
+        Files.write(filePath, file.getBytes());
+    } catch (IOException e) {
+        throw new RuntimeException("Failed to upload image: " + e.getMessage());
+    }
+
+    String imagePath = "/uploads/products/" + fileName;
+    product.setImagePath(imagePath);
+
+    Product savedProduct = productRepository.save(product);
+
+    return modelMapper.map(savedProduct, ProductResponseDTO.class);
+}
+
+==============================================================================================
+
+✅ STEP 6: Return Full Image URL in Response (Important)
+
+Because frontend needs direct usable URL.
+
+In ProductResponseDTO add:
+private String imageUrl;
+
+==============================================================================================
+
+✅ STEP 7: Where to paste buildImageUrl() method?
+
+📌 File: ProductServiceImpl.java
+
+Paste this method anywhere inside the class, usually at bottom (recommended):
+
+private String buildImageUrl(String imagePath) {
+    if (imagePath == null) return null;
+    return "http://localhost:8081" + imagePath;
+}
+
+Example placement:
+
+@Service
+public class ProductServiceImpl implements ProductService {
+
+
+    // all autowired, repository, mapper etc...
+
+
+    // all methods...
+
+
+    private String buildImageUrl(String imagePath) {
+        if (imagePath == null) return null;
+        return "http://localhost:8081" + imagePath;
+    }
+}
+✅ STEP 7: Where to paste dto.setImageUrl(...)?
+
+Inside your upload method, you will already have:
+
+Product savedProduct = productRepository.save(product);
+
+After this line, paste:
+
+ProductResponseDTO dto = modelMapper.map(savedProduct, ProductResponseDTO.class);
+dto.setImageUrl(buildImageUrl(savedProduct.getImagePath()));
+return dto;
+
+So final part of upload method should look like this:
+
+product.setImagePath(imagePath);
+
+
+Product savedProduct = productRepository.save(product);
+
+
+ProductResponseDTO dto = modelMapper.map(savedProduct, ProductResponseDTO.class);
+dto.setImageUrl(buildImageUrl(savedProduct.getImagePath()));
+
+
+return dto;
+✅ STEP 8: Where to update Get APIs?
+
+Wherever you are returning product DTO, you must add:
+
+dto.setImageUrl(buildImageUrl(product.getImagePath()));
+Example 1: getProductById()
+@Override
+public ProductResponseDTO getProductById(Long id) {
+
+
+    Product product = productRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+
+
+    ProductResponseDTO dto = modelMapper.map(product, ProductResponseDTO.class);
+    dto.setImageUrl(buildImageUrl(product.getImagePath()));
+
+
+    return dto;
+}
+Example 2: getAllProducts()
+
+If you are returning Page<ProductResponseDTO>:
+
+@Override
+public Page<ProductResponseDTO> getAllProducts(int page, int size, String sortBy, String sortDir) {
+
+
+    Sort sort = sortDir.equalsIgnoreCase("asc") 
+            ? Sort.by(sortBy).ascending()
+            : Sort.by(sortBy).descending();
+
+
+    Pageable pageable = PageRequest.of(page, size, sort);
+
+
+    Page<Product> productPage = productRepository.findAll(pageable);
+
+
+    return productPage.map(product -> {
+        ProductResponseDTO dto = modelMapper.map(product, ProductResponseDTO.class);
+        dto.setImageUrl(buildImageUrl(product.getImagePath()));
+        return dto;
+    });
+}

@@ -1,0 +1,52 @@
+✅ Next Step (Very Important)
+
+Right now you are saving image in:
+
+/uploads/products/
+
+But Spring Boot will not serve this folder automatically.
+
+So next we should implement:
+
+🚀 1) Serve Image as Static Resource (GET URL should work)
+
+So when frontend hits:
+
+http://localhost:8081/uploads/products/xyz.png
+
+It should show the image.
+
+=============================================================================================
+
+✅ Step: Configure Static Resource Mapping
+
+Create a config class:
+
+📌 src/main/java/com/advann/product_service/config/WebConfig.java
+
+package com.advann.product_service.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+
+        registry.addResourceHandler("/uploads/**")
+                .addResourceLocations("file:" + System.getProperty("user.dir") + "/uploads/");
+    }
+}
+
+================================================================================================
+
+✅ Now test in browser
+
+Upload image and open:
+
+http://localhost:8081/uploads/products/1770744559973_iphone 16
+
+It should display.

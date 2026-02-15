@@ -1,0 +1,8 @@
+OPEN PowerShell (Run once)
+
+setx AWS_ACCESS_KEY "YOUR_ACCESS_KEY_ID"
+setx AWS_SECRET_KEY "YOUR_SECRET_ACCESS_KEY"
+
+
+echo $env:AWS_ACCESS_KEY
+echo $env:AWS_SECRET_KEY

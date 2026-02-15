@@ -1,0 +1,7 @@
+# AWS secrets / local notes
+backend/Notes/
+*.csv
+
+# Environment files
+.env
+.env.*
