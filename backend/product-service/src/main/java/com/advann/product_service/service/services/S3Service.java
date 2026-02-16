@@ -4,7 +4,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface S3Service {
 
-    String uploadFile(MultipartFile file, String folderName);
+    String uploadFile(MultipartFile file, String folder);
 
-    String uploadBytes(byte[] data, String contentType, String folderName);
+    String uploadBytes(byte[] bytes, String contentType, String folder);
+
+    void deleteFileByUrl(String fileUrl);
 }

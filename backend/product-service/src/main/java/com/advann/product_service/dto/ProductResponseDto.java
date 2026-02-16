@@ -16,8 +16,13 @@ public class ProductResponseDto {
     private String name;
     private BigDecimal price;
     private Integer quantity;
-    private Long categoryId;
-    private String categoryName;
+
     private String imagePath;
     private String imageUrl;
+
+    private Long categoryId;
+    private String categoryName;
+
+    private Long subCategoryId;
+    private String subCategoryName;
 }

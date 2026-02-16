@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
@@ -62,5 +63,35 @@ public class S3ServiceImpl implements S3Service {
         s3Client.putObject(request, RequestBody.fromBytes(data));
 
         return "https://" + bucketName + ".s3." + region + ".amazonaws.com/" + key;
+    }
+
+    @Override
+    public void deleteFileByUrl(String fileUrl) {
+
+        if (fileUrl == null || fileUrl.isBlank()) {
+            return;
+        }
+
+        try {
+            // Example URL:
+            // https://bucket.s3.ap-south-1.amazonaws.com/products/full/abc.jpg
+            String baseUrl = "https://" + bucketName + ".s3." + region + ".amazonaws.com/";
+
+            if (!fileUrl.startsWith(baseUrl)) {
+                throw new InvalidFileException("Invalid S3 file URL: " + fileUrl);
+            }
+
+            String key = fileUrl.substring(baseUrl.length());
+
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build();
+
+            s3Client.deleteObject(deleteRequest);
+
+        } catch (Exception e) {
+            throw new InvalidFileException("Failed to delete file from S3.");
+        }
     }
 }

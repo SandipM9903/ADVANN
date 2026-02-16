@@ -22,5 +22,9 @@ public class ProductRequestDto {
     @Min(value = 1, message = "Quantity must be at least 1")
     private Integer quantity;
 
+    @NotNull(message = "Category Id is required")
     private Long categoryId;
+
+    @NotNull(message = "SubCategory Id is required")
+    private Long subCategoryId;
 }
