@@ -6,6 +6,7 @@ import com.advann.product_service.dto.ProductRequestDto;
 import com.advann.product_service.dto.ProductResponseDto;
 import com.advann.product_service.payload.ApiResponse;
 import com.advann.product_service.service.services.ProductService;
+import com.advann.product_service.service.services.S3Service;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -23,6 +24,7 @@ import java.util.List;
 public class ProductController {
 
     private final ProductService productService;
+    private final S3Service s3Service;
 
     @Operation(summary = "Create Product", description = "Creates a new product and saves it into database")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
@@ -220,5 +222,39 @@ public class ProductController {
                 productService.getProductImagesWithPagination(productId, page, size, sortDir);
 
         return ResponseEntity.ok(new ApiResponse<>(true, "Product images fetched successfully", response));
+    }
+
+    //http://localhost:8081/api/products/images/presigned-url?fileUrl=<S3_FILE_URL>
+    //Image Url : https://advann-product-images-2026.s3.ap-south-1.amazonaws.com/products/full/b4e639f8-7639-4632-ba09-7e6e150aa5d9_mobile-cover.jpg
+    //http://localhost:8081/api/products/images/presigned-url?fileUrl=https://advann-product-images-2026.s3.ap-south-1.amazonaws.com/products/full/b4e639f8-7639-4632-ba09-7e6e150aa5d9_mobile-cover.jpg
+    @GetMapping("/images/presigned-url")
+    public ResponseEntity<ApiResponse<String>> generatePresignedUrl(
+            @RequestParam String fileUrl
+    ) {
+
+        String presignedUrl = s3Service.generatePresignedUrl(fileUrl);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Presigned URL generated successfully", presignedUrl)
+        );
+    }
+
+    @PutMapping("/reduce-stock/{id}/{quantity}")
+    public ResponseEntity<ApiResponse<Object>> reduceStock(
+            @PathVariable Long id,
+            @PathVariable Integer quantity
+    ) {
+
+        productService.reduceStock(id, quantity);
+
+        ProductResponseDto product = productService.getProductById(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.builder()
+                        .success(true)
+                        .message("Stock reduced successfully")
+                        .data(product)
+                        .build()
+        );
     }
 }

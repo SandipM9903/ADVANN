@@ -596,4 +596,23 @@ public class ProductServiceImpl implements ProductService {
                 .last(imagePage.isLast())
                 .build();
     }
+
+    @Override
+    public void reduceStock(Long productId, Integer quantity) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+        if (quantity <= 0) {
+            throw new RuntimeException("Quantity must be greater than 0");
+        }
+
+        if (product.getQuantity() < quantity) {
+            throw new RuntimeException("Insufficient stock for product: " + product.getName());
+        }
+
+        product.setQuantity(product.getQuantity() - quantity);
+
+        productRepository.save(product);
+    }
 }

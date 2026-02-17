@@ -12,6 +12,7 @@ import com.advann.cart_service.payload.ApiResponse;
 import com.advann.cart_service.repository.CartItemRepository;
 import com.advann.cart_service.repository.CartRepository;
 import com.advann.cart_service.service.services.CartService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
@@ -150,6 +151,7 @@ public class CartServiceImpl implements CartService {
         cartItemRepository.delete(cartItem);
     }
 
+    @Transactional
     @Override
     public void clearCart(Long userId) {
 

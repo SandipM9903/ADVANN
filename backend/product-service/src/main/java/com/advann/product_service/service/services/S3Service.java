@@ -9,4 +9,6 @@ public interface S3Service {
     String uploadBytes(byte[] bytes, String contentType, String folder);
 
     void deleteFileByUrl(String fileUrl);
+
+    String generatePresignedUrl(String fileUrl);
 }

@@ -9,9 +9,13 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.UUID;
 
 @Service
@@ -19,6 +23,7 @@ import java.util.UUID;
 public class S3ServiceImpl implements S3Service {
 
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
@@ -73,8 +78,6 @@ public class S3ServiceImpl implements S3Service {
         }
 
         try {
-            // Example URL:
-            // https://bucket.s3.ap-south-1.amazonaws.com/products/full/abc.jpg
             String baseUrl = "https://" + bucketName + ".s3." + region + ".amazonaws.com/";
 
             if (!fileUrl.startsWith(baseUrl)) {
@@ -92,6 +95,39 @@ public class S3ServiceImpl implements S3Service {
 
         } catch (Exception e) {
             throw new InvalidFileException("Failed to delete file from S3.");
+        }
+    }
+
+    @Override
+    public String generatePresignedUrl(String fileUrl) {
+
+        if (fileUrl == null || fileUrl.isBlank()) {
+            throw new InvalidFileException("File URL cannot be empty.");
+        }
+
+        try {
+            String baseUrl = "https://" + bucketName + ".s3." + region + ".amazonaws.com/";
+
+            if (!fileUrl.startsWith(baseUrl)) {
+                throw new InvalidFileException("Invalid S3 file URL: " + fileUrl);
+            }
+
+            String key = fileUrl.substring(baseUrl.length());
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(10)) // URL valid for 10 minutes
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            return s3Presigner.presignGetObject(presignRequest).url().toString();
+
+        } catch (Exception e) {
+            throw new InvalidFileException("Failed to generate pre-signed URL.");
         }
     }
 }
