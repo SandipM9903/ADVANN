@@ -1,0 +1,928 @@
+pom.xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.3.8</version>
+		<relativePath/>
+	</parent>
+
+	<groupId>com.advann</groupId>
+	<artifactId>cart-service</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>cart-service</name>
+	<description>Cart Service for Advann Microservices</description>
+
+	<properties>
+		<java.version>17</java.version>
+		<spring-cloud.version>2023.0.5</spring-cloud.version>
+	</properties>
+
+	<dependencies>
+
+		<!-- Spring Boot Web -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<!-- Spring Data JPA -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+
+		<!-- Validation -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+
+		<!-- Eureka Client -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+		<!-- Feign Client -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+		<!-- PostgreSQL -->
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Lombok -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>1.18.34</version>
+			<optional>true</optional>
+		</dependency>
+
+		<!-- Swagger OpenAPI -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.5.0</version>
+		</dependency>
+
+		<!-- Actuator -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<!-- ModelMapper (Optional but recommended) -->
+		<dependency>
+			<groupId>org.modelmapper</groupId>
+			<artifactId>modelmapper</artifactId>
+			<version>3.2.0</version>
+		</dependency>
+
+		<!-- Spring Boot Test -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!--	Model Mapper	-->
+		<dependency>
+			<groupId>org.modelmapper</groupId>
+			<artifactId>modelmapper</artifactId>
+			<version>3.2.0</version>
+		</dependency>
+
+	</dependencies>
+
+	<!-- Spring Cloud Dependency Management -->
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<build>
+		<plugins>
+
+			<!-- Maven Compiler Plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>1.18.34</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
+			<!-- Spring Boot Plugin -->
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+
+		</plugins>
+	</build>
+
+</project>
+
+========================================================================================================================
+
+application.yml
+
+server:
+  port: 8082
+
+spring:
+  application:
+    name: cart-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/advann_cart_db
+    username: postgres
+    password: root
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: Cart Service
+    description: Cart Microservice for Advann
+    version: 1.0.0
+
+logging:
+  level:
+    com.advann.cart_service: INFO
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+
+  swagger-ui:
+    path: /swagger-ui.html
+    config-url: /cart-service/v3/api-docs/swagger-config
+    url: /cart-service/v3/api-docs
+
+========================================================================================================================
+
+package com.advann.cart_service.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "cart")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Cart {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // for now we store userId directly (later we can connect with user-service)
+    @Column(nullable = false)
+    private Long userId;
+
+    @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CartItem> cartItems = new ArrayList<>();
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+}
+
+======================================================================================================================
+
+package com.advann.cart_service.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "cart_items")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CartItem {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // Many cart items belong to one cart
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cart_id", nullable = false)
+    private Cart cart;
+
+    @Column(nullable = false)
+    private Long productId;
+
+    @Column(nullable = false)
+    private Integer quantity;
+
+    // store price at that time (important for future discounts changes)
+    @Column(nullable = false)
+    private BigDecimal price;
+
+    @Column(nullable = false)
+    private BigDecimal totalPrice;
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+
+        if (this.price != null && this.quantity != null) {
+            this.totalPrice = this.price.multiply(BigDecimal.valueOf(this.quantity));
+        }
+    }
+
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+
+        if (this.price != null && this.quantity != null) {
+            this.totalPrice = this.price.multiply(BigDecimal.valueOf(this.quantity));
+        }
+    }
+}
+
+========================================================================================================================
+
+CartRequestDto
+
+package com.advann.cart_service.dto;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CartRequestDto {
+
+    @NotNull(message = "UserId is required")
+    private Long userId;
+
+    @NotNull(message = "ProductId is required")
+    private Long productId;
+
+    @NotNull(message = "Quantity is required")
+    @Min(value = 1, message = "Quantity must be at least 1")
+    private Integer quantity;
+}
+
+========================================================================================================================
+
+CartResponseDto
+
+package com.advann.cart_service.dto;
+
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CartResponseDto {
+
+    private Long cartId;
+
+    private Long userId;
+
+    private List<CartItemResponseDto> items;
+
+    private BigDecimal grandTotal;
+
+    private Integer totalItems;
+}
+
+========================================================================================================================
+
+CartItemResponseDto
+
+package com.advann.cart_service.dto;
+
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CartItemResponseDto {
+
+    private Long id;
+
+    private Long productId;
+
+    private String productName;
+
+    private String productImage;
+
+    private BigDecimal price;
+
+    private Integer quantity;
+
+    private BigDecimal totalPrice;
+}
+
+=======================================================================================================================
+
+package com.advann.cart_service.repository;
+
+import com.advann.cart_service.entity.Cart;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface CartRepository extends JpaRepository<Cart, Long> {
+
+    Optional<Cart> findByUserId(Long userId);
+
+    boolean existsByUserId(Long userId);
+}
+
+=======================================================================================================================
+
+package com.advann.cart_service.repository;
+
+import com.advann.cart_service.entity.CartItem;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface CartItemRepository extends JpaRepository<CartItem, Long> {
+
+    List<CartItem> findByCartId(Long cartId);
+
+    Optional<CartItem> findByCartIdAndProductId(Long cartId, Long productId);
+
+    boolean existsByCartIdAndProductId(Long cartId, Long productId);
+
+    void deleteByCartId(Long cartId);
+}
+
+=======================================================================================================================
+
+Feign Client Implementing................................................
+
+=======================================================================================================================
+
+package com.advann.cart_service.dto;
+
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ProductResponseDto {
+
+    private Long id;
+    private String name;
+    private BigDecimal price;
+    private Integer quantity;
+    private String imagePath;
+    private String imageUrl;
+    private Long categoryId;
+    private String categoryName;
+    private Long subCategoryId;
+    private String subCategoryName;
+}
+
+================================================================================================================
+
+package com.advann.cart_service.client;
+
+import com.advann.cart_service.dto.ProductResponseDto;
+import com.advann.cart_service.payload.ApiResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+@FeignClient(name = "product-service")
+public interface ProductClient {
+
+    @GetMapping("/api/products/{id}")
+    ApiResponse<ProductResponseDto> getProductById(@PathVariable("id") Long id);
+}
+
+================================================================================================================
+
+package com.advann.cart_service.payload;
+
+import lombok.*;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ApiResponse<T> {
+
+    private boolean success;
+    private String message;
+    private T data;
+}
+
+================================================================================================================
+
+package com.advann.cart_service.config;
+
+import org.modelmapper.ModelMapper;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class ModelMapperConfig {
+
+    @Bean
+    public ModelMapper modelMapper() {
+        return new ModelMapper();
+    }
+}
+
+=================================================================================================================
+
+package com.advann.cart_service.service.services;
+
+import com.advann.cart_service.dto.CartRequestDto;
+import com.advann.cart_service.dto.CartResponseDto;
+
+public interface CartService {
+
+    CartResponseDto addToCart(CartRequestDto dto);
+
+    CartResponseDto getCartByUserId(Long userId);
+
+    CartResponseDto updateCartItemQuantity(Long userId, Long productId, Integer quantity);
+
+    void removeItemFromCart(Long userId, Long productId);
+
+    void clearCart(Long userId);
+}
+
+==================================================================================================================
+
+package com.advann.cart_service.service.serviceImpl;
+
+import com.advann.cart_service.client.ProductClient;
+import com.advann.cart_service.dto.CartItemResponseDto;
+import com.advann.cart_service.dto.CartRequestDto;
+import com.advann.cart_service.dto.CartResponseDto;
+import com.advann.cart_service.dto.ProductResponseDto;
+import com.advann.cart_service.entity.Cart;
+import com.advann.cart_service.entity.CartItem;
+import com.advann.cart_service.exception.ResourceNotFoundException;
+import com.advann.cart_service.payload.ApiResponse;
+import com.advann.cart_service.repository.CartItemRepository;
+import com.advann.cart_service.repository.CartRepository;
+import com.advann.cart_service.service.services.CartService;
+import lombok.RequiredArgsConstructor;
+import org.modelmapper.ModelMapper;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class CartServiceImpl implements CartService {
+
+    private final CartRepository cartRepository;
+    private final CartItemRepository cartItemRepository;
+    private final ProductClient productClient;
+    private final ModelMapper modelMapper;
+
+    @Override
+    public CartResponseDto addToCart(CartRequestDto dto) {
+
+        ApiResponse<ProductResponseDto> productResponse = productClient.getProductById(dto.getProductId());
+
+        if (productResponse == null || productResponse.getData() == null) {
+            throw new ResourceNotFoundException("Product not found with id: " + dto.getProductId());
+        }
+
+        ProductResponseDto product = productResponse.getData();
+
+        // find or create cart
+        Cart cart = cartRepository.findByUserId(dto.getUserId())
+                .orElseGet(() -> cartRepository.save(
+                        Cart.builder()
+                                .userId(dto.getUserId())
+                                .build()
+                ));
+
+        // check if item already exists
+        CartItem existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), dto.getProductId())
+                .orElse(null);
+
+        if (existingItem != null) {
+
+            existingItem.setQuantity(existingItem.getQuantity() + dto.getQuantity());
+            existingItem.setPrice(product.getPrice());
+
+            cartItemRepository.save(existingItem);
+
+        } else {
+
+            CartItem newItem = CartItem.builder()
+                    .cart(cart)
+                    .productId(dto.getProductId())
+                    .quantity(dto.getQuantity())
+                    .price(product.getPrice())
+                    .build();
+
+            cartItemRepository.save(newItem);
+        }
+
+        return getCartByUserId(dto.getUserId());
+    }
+
+    @Override
+    public CartResponseDto getCartByUserId(Long userId) {
+
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart not found for userId: " + userId));
+
+        List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
+
+        List<CartItemResponseDto> responseItems = cartItems.stream()
+                .map(item -> {
+
+                    ApiResponse<ProductResponseDto> productResponse =
+                            productClient.getProductById(item.getProductId());
+
+                    ProductResponseDto product = productResponse.getData();
+
+                    // ✅ ModelMapper used here
+                    CartItemResponseDto itemDto = modelMapper.map(item, CartItemResponseDto.class);
+
+                    // extra fields from product-service
+                    if (product != null) {
+                        itemDto.setProductName(product.getName());
+                        itemDto.setProductImage(product.getImageUrl());
+                    }
+
+                    return itemDto;
+                })
+                .toList();
+
+        BigDecimal grandTotal = responseItems.stream()
+                .map(CartItemResponseDto::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        int totalItems = responseItems.stream()
+                .mapToInt(CartItemResponseDto::getQuantity)
+                .sum();
+
+        return CartResponseDto.builder()
+                .cartId(cart.getId())
+                .userId(cart.getUserId())
+                .items(responseItems)
+                .grandTotal(grandTotal)
+                .totalItems(totalItems)
+                .build();
+    }
+
+    @Override
+    public CartResponseDto updateCartItemQuantity(Long userId, Long productId, Integer quantity) {
+
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart not found for userId: " + userId));
+
+        CartItem cartItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart item not found for productId: " + productId));
+
+        if (quantity <= 0) {
+            cartItemRepository.delete(cartItem);
+        } else {
+            cartItem.setQuantity(quantity);
+            cartItemRepository.save(cartItem);
+        }
+
+        return getCartByUserId(userId);
+    }
+
+    @Override
+    public void removeItemFromCart(Long userId, Long productId) {
+
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart not found for userId: " + userId));
+
+        CartItem cartItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart item not found for productId: " + productId));
+
+        cartItemRepository.delete(cartItem);
+    }
+
+    @Override
+    public void clearCart(Long userId) {
+
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart not found for userId: " + userId));
+
+        cartItemRepository.deleteByCartId(cart.getId());
+    }
+}
+
+=====================================================================================================================
+
+✅ CartController
+✅ ResourceNotFoundException
+✅ GlobalExceptionHandler
+(Exactly same style like your product-service)
+
+✅ 1. ResourceNotFoundException
+
+📌 File: src/main/java/com/advann/cart_service/exceptions/ResourceNotFoundException.java
+
+package com.advann.cart_service.exceptions;
+
+public class ResourceNotFoundException extends RuntimeException {
+
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+✅ 2. GlobalExceptionHandler
+
+📌 File: src/main/java/com/advann/cart_service/exceptions/GlobalExceptionHandler.java
+
+package com.advann.cart_service.exceptions;
+
+import com.advann.cart_service.payload.ApiResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleResourceNotFound(ResourceNotFoundException ex) {
+
+        ApiResponse<Object> response = ApiResponse.builder()
+                .success(false)
+                .message(ex.getMessage())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationErrors(MethodArgumentNotValidException ex) {
+
+        Map<String, String> errors = new HashMap<>();
+
+        ex.getBindingResult().getFieldErrors().forEach(error -> {
+            errors.put(error.getField(), error.getDefaultMessage());
+        });
+
+        ApiResponse<Map<String, String>> response = ApiResponse.<Map<String, String>>builder()
+                .success(false)
+                .message("Validation Failed")
+                .data(errors)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
+
+        ApiResponse<Object> response = ApiResponse.builder()
+                .success(false)
+                .message("Something went wrong: " + ex.getMessage())
+                .data(null)
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+✅ 3. CartController
+
+📌 File: src/main/java/com/advann/cart_service/controller/CartController.java
+
+package com.advann.cart_service.controller;
+
+import com.advann.cart_service.dto.CartRequestDto;
+import com.advann.cart_service.dto.CartResponseDto;
+import com.advann.cart_service.payload.ApiResponse;
+import com.advann.cart_service.service.services.CartService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/cart")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class CartController {
+
+    private final CartService cartService;
+
+    @PostMapping("/add")
+    public ResponseEntity<ApiResponse<CartResponseDto>> addToCart(
+            @Valid @RequestBody CartRequestDto dto
+    ) {
+
+        CartResponseDto responseDto = cartService.addToCart(dto);
+
+        return ResponseEntity.ok(
+                ApiResponse.<CartResponseDto>builder()
+                        .success(true)
+                        .message("Product added to cart successfully")
+                        .data(responseDto)
+                        .build()
+        );
+    }
+
+    @GetMapping("/{userId}")
+    public ResponseEntity<ApiResponse<CartResponseDto>> getCartByUserId(
+            @PathVariable Long userId
+    ) {
+
+        CartResponseDto responseDto = cartService.getCartByUserId(userId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<CartResponseDto>builder()
+                        .success(true)
+                        .message("Cart fetched successfully")
+                        .data(responseDto)
+                        .build()
+        );
+    }
+
+    @PutMapping("/update")
+    public ResponseEntity<ApiResponse<CartResponseDto>> updateCartItemQuantity(
+            @RequestParam Long userId,
+            @RequestParam Long productId,
+            @RequestParam Integer quantity
+    ) {
+
+        CartResponseDto responseDto = cartService.updateCartItemQuantity(userId, productId, quantity);
+
+        return ResponseEntity.ok(
+                ApiResponse.<CartResponseDto>builder()
+                        .success(true)
+                        .message("Cart updated successfully")
+                        .data(responseDto)
+                        .build()
+        );
+    }
+
+    @DeleteMapping("/remove")
+    public ResponseEntity<ApiResponse<Object>> removeItemFromCart(
+            @RequestParam Long userId,
+            @RequestParam Long productId
+    ) {
+
+        cartService.removeItemFromCart(userId, productId);
+
+        return ResponseEntity.ok(
+                ApiResponse.builder()
+                        .success(true)
+                        .message("Item removed from cart successfully")
+                        .data(null)
+                        .build()
+        );
+    }
+
+    @DeleteMapping("/clear/{userId}")
+    public ResponseEntity<ApiResponse<Object>> clearCart(
+            @PathVariable Long userId
+    ) {
+
+        cartService.clearCart(userId);
+
+        return ResponseEntity.ok(
+                ApiResponse.builder()
+                        .success(true)
+                        .message("Cart cleared successfully")
+                        .data(null)
+                        .build()
+        );
+    }
+}
+✅ Completed Cart Service APIs
+
+Now you have:
+
+Add to cart
+
+POST /api/cart/add
+
+Get cart
+
+GET /api/cart/{userId}
+
+Update quantity
+
+PUT /api/cart/update?userId=1&productId=2&quantity=5
+
+Remove item
+
+DELETE /api/cart/remove?userId=1&productId=2
+
+Clear cart
+
+DELETE /api/cart/clear/{userId}
