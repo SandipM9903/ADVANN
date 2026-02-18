@@ -146,4 +146,17 @@ public class OrderServiceImpl implements OrderService {
 
         return getOrderById(orderId);
     }
+
+    @Override
+    public OrderResponseDto updatePaymentStatus(Long orderId) {
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+
+        order.setPaymentStatus(PaymentStatus.PAID);
+
+        orderRepository.save(order);
+
+        return getOrderById(orderId);
+    }
 }

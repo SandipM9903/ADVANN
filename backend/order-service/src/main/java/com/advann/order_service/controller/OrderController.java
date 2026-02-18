@@ -72,4 +72,20 @@ public class OrderController {
                         .build()
         );
     }
+
+    @PutMapping("/update-payment/{orderId}")
+    public ResponseEntity<ApiResponse<OrderResponseDto>> updatePaymentStatus(
+            @PathVariable Long orderId
+    ) {
+
+        OrderResponseDto order = orderService.updatePaymentStatus(orderId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<OrderResponseDto>builder()
+                        .success(true)
+                        .message("Payment status updated successfully")
+                        .data(order)
+                        .build()
+        );
+    }
 }
