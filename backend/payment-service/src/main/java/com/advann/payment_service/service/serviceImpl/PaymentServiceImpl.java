@@ -90,31 +90,60 @@ public class PaymentServiceImpl implements PaymentService {
             String payload = dto.getRazorpayOrderId() + "|" + dto.getRazorpayPaymentId();
 
             Mac sha256Hmac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey = new SecretKeySpec(razorpayKeySecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            SecretKeySpec secretKey = new SecretKeySpec(
+                    razorpayKeySecret.getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"
+            );
+
             sha256Hmac.init(secretKey);
 
             byte[] hashBytes = sha256Hmac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
             String generatedSignature = HexFormat.of().formatHex(hashBytes);
 
+            // if signature mismatch
             if (!generatedSignature.equals(dto.getRazorpaySignature())) {
+
                 payment.setPaymentStatus(PaymentStatus.FAILED);
                 paymentRepository.save(payment);
+
+                // update order-service payment status as FAILED
+                PaymentStatusUpdateRequestDto statusDto = PaymentStatusUpdateRequestDto.builder()
+                        .paymentStatus("FAILED")
+                        .build();
+
+                orderClient.updatePaymentStatus(dto.getOrderId(), statusDto);
 
                 throw new RuntimeException("Payment signature verification failed");
             }
 
+            // payment verified successfully
             payment.setRazorpayPaymentId(dto.getRazorpayPaymentId());
             payment.setRazorpaySignature(dto.getRazorpaySignature());
             payment.setPaymentStatus(PaymentStatus.PAID);
 
             paymentRepository.save(payment);
 
-            // update order-service payment status
-            orderClient.updatePaymentStatus(dto.getOrderId());
+            // update order-service payment status as PAID
+            PaymentStatusUpdateRequestDto statusDto = PaymentStatusUpdateRequestDto.builder()
+                    .paymentStatus("PAID")
+                    .build();
+
+            orderClient.updatePaymentStatus(dto.getOrderId(), statusDto);
 
             return "Payment verified successfully";
 
         } catch (Exception e) {
+
+            payment.setPaymentStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+
+            // update order-service payment status as FAILED
+            PaymentStatusUpdateRequestDto statusDto = PaymentStatusUpdateRequestDto.builder()
+                    .paymentStatus("FAILED")
+                    .build();
+
+            orderClient.updatePaymentStatus(dto.getOrderId(), statusDto);
+
             throw new RuntimeException("Payment verification failed: " + e.getMessage());
         }
     }

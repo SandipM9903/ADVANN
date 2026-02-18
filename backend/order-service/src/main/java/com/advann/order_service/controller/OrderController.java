@@ -1,6 +1,7 @@
 package com.advann.order_service.controller;
 
 import com.advann.order_service.dto.OrderResponseDto;
+import com.advann.order_service.dto.PaymentStatusUpdateRequestDto;
 import com.advann.order_service.payload.ApiResponse;
 import com.advann.order_service.service.services.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -73,18 +74,19 @@ public class OrderController {
         );
     }
 
-    @PutMapping("/update-payment/{orderId}")
+    @PutMapping("/{orderId}/payment-status")
     public ResponseEntity<ApiResponse<OrderResponseDto>> updatePaymentStatus(
-            @PathVariable Long orderId
+            @PathVariable Long orderId,
+            @RequestBody PaymentStatusUpdateRequestDto requestDto
     ) {
 
-        OrderResponseDto order = orderService.updatePaymentStatus(orderId);
+        OrderResponseDto response = orderService.updatePaymentStatus(orderId, requestDto);
 
         return ResponseEntity.ok(
                 ApiResponse.<OrderResponseDto>builder()
                         .success(true)
                         .message("Payment status updated successfully")
-                        .data(order)
+                        .data(response)
                         .build()
         );
     }

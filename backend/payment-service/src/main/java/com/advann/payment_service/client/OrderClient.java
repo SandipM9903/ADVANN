@@ -1,6 +1,7 @@
 package com.advann.payment_service.client;
 
 import com.advann.payment_service.dto.OrderResponseDto;
+import com.advann.payment_service.dto.PaymentStatusUpdateRequestDto;
 import com.advann.payment_service.payload.ApiResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +12,9 @@ public interface OrderClient {
     @GetMapping("/api/orders/{orderId}")
     ApiResponse<OrderResponseDto> getOrderById(@PathVariable("orderId") Long orderId);
 
-    @PutMapping("/api/orders/update-payment/{orderId}")
-    ApiResponse<Object> updatePaymentStatus(@PathVariable("orderId") Long orderId);
+    @PutMapping("/api/orders/{orderId}/payment-status")
+    ApiResponse<Object> updatePaymentStatus(
+            @PathVariable("orderId") Long orderId,
+            @RequestBody PaymentStatusUpdateRequestDto requestDto
+    );
 }

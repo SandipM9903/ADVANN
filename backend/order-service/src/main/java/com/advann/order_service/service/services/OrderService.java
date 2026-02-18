@@ -1,6 +1,7 @@
 package com.advann.order_service.service.services;
 
 import com.advann.order_service.dto.OrderResponseDto;
+import com.advann.order_service.dto.PaymentStatusUpdateRequestDto;
 
 import java.util.List;
 
@@ -14,5 +15,5 @@ public interface OrderService {
 
     OrderResponseDto cancelOrder(Long orderId);
 
-    OrderResponseDto updatePaymentStatus(Long orderId);
+    OrderResponseDto updatePaymentStatus(Long orderId, PaymentStatusUpdateRequestDto requestDto);
 }
