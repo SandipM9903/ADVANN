@@ -27,6 +27,7 @@ public class JwtUtil {
     }
 
     public String extractUsername(String token) {
+
         Claims claims = Jwts.parser()
                 .verifyWith((javax.crypto.SecretKey) getSigningKey())
                 .build()
@@ -34,5 +35,16 @@ public class JwtUtil {
                 .getPayload();
 
         return claims.getSubject();
+    }
+
+    public String extractRole(String token) {
+
+        Claims claims = Jwts.parser()
+                .verifyWith((javax.crypto.SecretKey) getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        return claims.get("role", String.class);
     }
 }

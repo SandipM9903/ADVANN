@@ -31,7 +31,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final CustomUserDetailsService customUserDetailsService;
     private final RefreshTokenService refreshTokenService;
-    private final RefreshTokenRepository  refreshTokenRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final TokenBlacklistService tokenBlacklistService;
 
     @Override
@@ -61,8 +61,13 @@ public class AuthServiceImpl implements AuthService {
                 )
         );
 
-        String accessToken = jwtService.generateAccessToken(loginRequestDto.getEmail());
+        // Load UserDetails (to get role)
+        UserDetails userDetails = customUserDetailsService.loadUserByUsername(loginRequestDto.getEmail());
 
+        // Access Token will contain role now
+        String accessToken = jwtService.generateAccessToken(userDetails);
+
+        // Refresh token remains same
         String refreshToken = refreshTokenService.createRefreshToken(loginRequestDto.getEmail()).getToken();
 
         return AuthResponseDto.builder()
@@ -82,7 +87,10 @@ public class AuthServiceImpl implements AuthService {
 
         String email = jwtService.extractUsername(refreshToken);
 
-        String newAccessToken = jwtService.generateAccessToken(email);
+        // Load UserDetails again (to include role in new token)
+        UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
+
+        String newAccessToken = jwtService.generateAccessToken(userDetails);
 
         return AuthResponseDto.builder()
                 .email(email)
@@ -94,10 +102,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(String refreshToken, String accessToken) {
 
-
+        // Revoke refresh token
         refreshTokenService.revokeToken(refreshToken);
 
-
+        // Blacklist access token
         tokenBlacklistService.blacklistToken(accessToken);
     }
 }

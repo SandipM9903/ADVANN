@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -28,8 +29,27 @@ public class JwtService {
         return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
+    // OLD METHOD (you can keep this or remove)
     public String generateAccessToken(String username) {
         return generateToken(username, accessExpiration);
+    }
+
+    // ✅ NEW METHOD (USE THIS FOR ACCESS TOKEN)
+    public String generateAccessToken(UserDetails userDetails) {
+
+        String role = userDetails.getAuthorities()
+                .stream()
+                .findFirst()
+                .map(GrantedAuthority::getAuthority) // ROLE_ADMIN / ROLE_CUSTOMER
+                .orElse("ROLE_CUSTOMER");
+
+        return Jwts.builder()
+                .subject(userDetails.getUsername())
+                .claim("role", role)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + accessExpiration))
+                .signWith(getSigningKey())
+                .compact();
     }
 
     public String generateRefreshToken(String username) {
@@ -70,5 +90,9 @@ public class JwtService {
 
     private boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
+    }
+
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
     }
 }

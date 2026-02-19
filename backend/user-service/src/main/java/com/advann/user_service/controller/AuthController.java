@@ -1,10 +1,8 @@
 package com.advann.user_service.controller;
 
-import com.advann.user_service.dto.AuthResponseDto;
-import com.advann.user_service.dto.LoginRequestDto;
-import com.advann.user_service.dto.RefreshTokenRequestDto;
-import com.advann.user_service.dto.RegisterRequestDto;
+import com.advann.user_service.dto.*;
 import com.advann.user_service.payload.ApiResponse;
+import com.advann.user_service.security.jwt.JwtService;
 import com.advann.user_service.service.services.AuthService;
 import com.advann.user_service.service.services.TokenBlacklistService;
 import jakarta.validation.Valid;
@@ -20,6 +18,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final JwtService jwtService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<String>> register(@Valid @RequestBody RegisterRequestDto registerRequestDto) {
@@ -83,16 +82,17 @@ public class AuthController {
     }
 
     @GetMapping("/validate-token")
-    public ResponseEntity<ApiResponse<String>> validateToken(
+    public ResponseEntity<ApiResponse<TokenValidationResponseDto>> validateToken(
             @RequestHeader("Authorization") String authHeader
     ) {
 
         String token = authHeader.substring(7);
 
+        // check blacklisted
         boolean isBlacklisted = tokenBlacklistService.isBlacklisted(token);
 
         if (isBlacklisted) {
-            ApiResponse<String> response = ApiResponse.<String>builder()
+            ApiResponse<TokenValidationResponseDto> response = ApiResponse.<TokenValidationResponseDto>builder()
                     .success(false)
                     .message("Token is blacklisted")
                     .data(null)
@@ -101,10 +101,33 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
 
-        ApiResponse<String> response = ApiResponse.<String>builder()
+        String email;
+        String role;
+
+        try {
+            email = jwtService.extractUsername(token);
+            role = jwtService.extractClaim(token, claims -> claims.get("role", String.class));
+        } catch (Exception e) {
+
+            ApiResponse<TokenValidationResponseDto> response = ApiResponse.<TokenValidationResponseDto>builder()
+                    .success(false)
+                    .message("Invalid token")
+                    .data(null)
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+
+        TokenValidationResponseDto dto = TokenValidationResponseDto.builder()
+                .valid(true)
+                .email(email)
+                .role(role)
+                .build();
+
+        ApiResponse<TokenValidationResponseDto> response = ApiResponse.<TokenValidationResponseDto>builder()
                 .success(true)
                 .message("Token is valid")
-                .data("VALID")
+                .data(dto)
                 .build();
 
         return ResponseEntity.ok(response);
