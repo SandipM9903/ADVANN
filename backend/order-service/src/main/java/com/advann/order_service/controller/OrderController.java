@@ -2,6 +2,7 @@ package com.advann.order_service.controller;
 
 import com.advann.order_service.dto.OrderResponseDto;
 import com.advann.order_service.dto.PaymentStatusUpdateRequestDto;
+import com.advann.order_service.enums.OrderStatus;
 import com.advann.order_service.payload.ApiResponse;
 import com.advann.order_service.service.services.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -89,5 +90,13 @@ public class OrderController {
                         .data(response)
                         .build()
         );
+    }
+
+    @PutMapping("/{orderId}/status")
+    public ResponseEntity<OrderResponseDto> updateOrderStatus(
+            @PathVariable Long orderId,
+            @RequestParam OrderStatus newStatus) {
+
+        return ResponseEntity.ok(orderService.updateOrderStatus(orderId, newStatus));
     }
 }

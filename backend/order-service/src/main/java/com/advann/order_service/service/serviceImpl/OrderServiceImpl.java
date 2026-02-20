@@ -12,6 +12,7 @@ import com.advann.order_service.payload.ApiResponse;
 import com.advann.order_service.repository.OrderItemRepository;
 import com.advann.order_service.repository.OrderRepository;
 import com.advann.order_service.service.services.OrderService;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class OrderServiceImpl implements OrderService {
     private final ModelMapper modelMapper;
 
     @Override
+    @Transactional
     public OrderResponseDto placeOrder(Long userId) {
 
         ApiResponse<CartResponseDto> cartResponse = cartClient.getCartByUserId(userId);
@@ -43,7 +45,7 @@ public class OrderServiceImpl implements OrderService {
         // Create Order
         Order order = Order.builder()
                 .userId(userId)
-                .orderStatus(OrderStatus.PLACED)
+                .orderStatus(OrderStatus.CREATED)
                 .paymentStatus(PaymentStatus.PENDING)
                 .totalAmount(cart.getGrandTotal())
                 .build();
@@ -62,7 +64,7 @@ public class OrderServiceImpl implements OrderService {
 
             ProductResponseDto product = productResponse.getData();
 
-            if (product.getQuantity() < cartItem.getQuantity()) {
+            if (product.getStock() < cartItem.getQuantity()) {
                 throw new RuntimeException("Insufficient stock for product: " + product.getName());
             }
 
@@ -135,13 +137,30 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional
     public OrderResponseDto cancelOrder(Long orderId) {
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found with id: " + orderId));
+
+        if (order.getOrderStatus() == OrderStatus.SHIPPED ||
+                order.getOrderStatus() == OrderStatus.DELIVERED) {
+            throw new RuntimeException("Order cannot be cancelled at this stage");
+        }
+
+        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
+            throw new RuntimeException("Order is already cancelled");
+        }
+
+        // Restore stock
+        List<OrderItem> orderItems = orderItemRepository.findByOrderId(orderId);
+
+        for (OrderItem item : orderItems) {
+            productClient.increaseStock(item.getProductId(), item.getQuantity());
+        }
 
         order.setOrderStatus(OrderStatus.CANCELLED);
-
         orderRepository.save(order);
 
         return getOrderById(orderId);
@@ -156,9 +175,44 @@ public class OrderServiceImpl implements OrderService {
         order.setPaymentStatus(requestDto.getPaymentStatus());
 
         if (requestDto.getPaymentStatus() == PaymentStatus.PAID) {
-            order.setOrderStatus(OrderStatus.CONFIRMED);
+            order.setOrderStatus(OrderStatus.PAID);
         }
 
+        if (order.getOrderStatus() != OrderStatus.CREATED) {
+            throw new RuntimeException("Payment already processed or invalid state");
+        }
+
+        orderRepository.save(order);
+
+        return getOrderById(orderId);
+    }
+
+    @Transactional
+    public OrderResponseDto updateOrderStatus(Long orderId, OrderStatus newStatus) {
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found with id: " + orderId));
+
+        // Prevent invalid transitions
+        if (order.getOrderStatus() == OrderStatus.CANCELLED ||
+                order.getOrderStatus() == OrderStatus.DELIVERED) {
+            throw new RuntimeException("Order status cannot be changed");
+        }
+
+        if (order.getOrderStatus() == OrderStatus.CREATED && newStatus != OrderStatus.PAID) {
+            throw new RuntimeException("Order must be PAID first");
+        }
+
+        if (order.getOrderStatus() == OrderStatus.PAID && newStatus != OrderStatus.SHIPPED) {
+            throw new RuntimeException("Order must be SHIPPED after PAID");
+        }
+
+        if (order.getOrderStatus() == OrderStatus.SHIPPED && newStatus != OrderStatus.DELIVERED) {
+            throw new RuntimeException("Order must be DELIVERED after SHIPPED");
+        }
+
+        order.setOrderStatus(newStatus);
         orderRepository.save(order);
 
         return getOrderById(orderId);

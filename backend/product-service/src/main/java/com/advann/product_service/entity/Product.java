@@ -29,10 +29,13 @@ public class Product {
     @Column(nullable = false)
     private BigDecimal price;
 
-    @NotNull(message = "Product quantity cannot be null.")
-    @Min(value = 1, message = "Product quantity must be at least 1.")
+    @Version
+    private Long version;
+
+    @NotNull(message = "Product stock cannot be null.")
+    @Min(value = 0, message = "Product stock cannot be negative.")
     @Column(nullable = false)
-    private Integer quantity;
+    private Integer stock;
 
     @ManyToOne
     @JoinColumn(name = "category_id")

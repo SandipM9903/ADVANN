@@ -239,13 +239,13 @@ public class ProductController {
         );
     }
 
-    @PutMapping("/reduce-stock/{id}/{quantity}")
+    @PutMapping("/reduce-stock/{id}/{stock}")
     public ResponseEntity<ApiResponse<Object>> reduceStock(
             @PathVariable Long id,
-            @PathVariable Integer quantity
+            @PathVariable Integer stock
     ) {
 
-        productService.reduceStock(id, quantity);
+        productService.reduceStock(id, stock);
 
         ProductResponseDto product = productService.getProductById(id);
 
@@ -255,6 +255,18 @@ public class ProductController {
                         .message("Stock reduced successfully")
                         .data(product)
                         .build()
+        );
+    }
+
+    @PutMapping("/increase-stock/{productId}")
+    public ResponseEntity<ApiResponse<Void>> increaseStock(
+            @PathVariable Long productId,
+            @RequestParam Integer quantity) {
+
+        productService.increaseStock(productId, quantity);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Stock increased successfully", null)
         );
     }
 }

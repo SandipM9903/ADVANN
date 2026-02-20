@@ -1,8 +1,8 @@
 package com.advann.order_service.enums;
 
 public enum OrderStatus {
-    PLACED,
-    CONFIRMED,
+    CREATED,
+    PAID,
     SHIPPED,
     DELIVERED,
     CANCELLED

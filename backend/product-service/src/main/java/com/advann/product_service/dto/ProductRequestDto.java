@@ -18,9 +18,9 @@ public class ProductRequestDto {
     @DecimalMin(value = "0.0", inclusive = false, message = "Price should be greater than 0")
     private BigDecimal price;
 
-    @NotNull(message = "Quantity cannot be null")
-    @Min(value = 1, message = "Quantity must be at least 1")
-    private Integer quantity;
+    @NotNull(message = "stock cannot be null")
+    @Min(value = 1, message = "stock must be at least 1")
+    private Integer stock;
 
     @NotNull(message = "Category Id is required")
     private Long categoryId;

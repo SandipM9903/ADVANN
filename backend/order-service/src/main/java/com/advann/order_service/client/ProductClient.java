@@ -16,4 +16,9 @@ public interface ProductClient {
             @PathVariable("id") Long productId,
             @PathVariable("quantity") Integer quantity
     );
+
+    @PutMapping("/api/products/increase-stock/{productId}")
+    ApiResponse<Void> increaseStock(
+            @PathVariable Long productId,
+            @RequestParam Integer quantity);
 }

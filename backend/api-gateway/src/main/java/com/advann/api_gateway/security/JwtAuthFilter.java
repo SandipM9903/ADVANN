@@ -24,19 +24,20 @@ public class JwtAuthFilter implements GlobalFilter {
         String path = exchange.getRequest().getURI().getPath();
         HttpMethod method = exchange.getRequest().getMethod();
 
+        // =========================
         // PUBLIC ENDPOINTS
+        // =========================
         if (path.startsWith("/api/auth/")
                 || (path.startsWith("/api/products") && method == HttpMethod.GET)) {
             return chain.filter(exchange);
         }
 
-        // Authorization Header check
-        if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
-        }
-
-        String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        // =========================
+        // AUTHORIZATION HEADER CHECK
+        // =========================
+        String authHeader = exchange.getRequest()
+                .getHeaders()
+                .getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
@@ -45,7 +46,9 @@ public class JwtAuthFilter implements GlobalFilter {
 
         String token = authHeader.substring(7);
 
-        // Validate token signature + expiry
+        // =========================
+        // TOKEN VALIDATION
+        // =========================
         try {
             jwtUtil.validateToken(token);
         } catch (Exception e) {
@@ -53,7 +56,9 @@ public class JwtAuthFilter implements GlobalFilter {
             return exchange.getResponse().setComplete();
         }
 
-        // Extract role from JWT
+        // =========================
+        // EXTRACT ROLE
+        // =========================
         String role;
         try {
             role = jwtUtil.extractRole(token);
@@ -62,33 +67,50 @@ public class JwtAuthFilter implements GlobalFilter {
             return exchange.getResponse().setComplete();
         }
 
-        // ADMIN ONLY: Product Add/Update/Delete
+        // =========================
+        // PRODUCT WRITE → ADMIN ONLY
+        // =========================
         if (path.startsWith("/api/products") && method != HttpMethod.GET) {
-            if (role == null || !role.equals("ROLE_ADMIN")) {
+            if (!"ROLE_ADMIN".equals(role)) {
                 exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
                 return exchange.getResponse().setComplete();
             }
         }
 
-        // CUSTOMER / ADMIN: Cart, Order, Payment
+        // =========================
+        // ORDER STATUS UPDATE → ADMIN ONLY
+        // Example: PUT /api/orders/5/status
+        // =========================
+        if (method == HttpMethod.PUT && path.matches("/api/orders/\\d+/status")) {
+            if (!"ROLE_ADMIN".equals(role)) {
+                exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                return exchange.getResponse().setComplete();
+            }
+        }
+
+        // =========================
+        // CART / ORDERS / PAYMENT → CUSTOMER OR ADMIN
+        // =========================
         if (path.startsWith("/api/cart")
                 || path.startsWith("/api/orders")
                 || path.startsWith("/api/payments")) {
 
-            if (role == null || !(role.equals("ROLE_CUSTOMER") || role.equals("ROLE_ADMIN"))) {
+            if (!"ROLE_CUSTOMER".equals(role) && !"ROLE_ADMIN".equals(role)) {
                 exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
                 return exchange.getResponse().setComplete();
             }
         }
 
-        // Call USER-SERVICE validate-token (Blacklist check)
+        // =========================
+        // BLACKLIST VALIDATION (USER SERVICE)
+        // =========================
         return webClientBuilder.build()
                 .get()
                 .uri("http://USER-SERVICE/api/auth/validate-token")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .retrieve()
                 .bodyToMono(String.class)
-                .flatMap(res -> chain.filter(exchange))
+                .flatMap(response -> chain.filter(exchange))
                 .onErrorResume(e -> {
                     exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                     return exchange.getResponse().setComplete();

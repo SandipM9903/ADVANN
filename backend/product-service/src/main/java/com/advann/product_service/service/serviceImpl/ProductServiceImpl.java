@@ -16,6 +16,7 @@ import com.advann.product_service.repository.ProductRepository;
 import com.advann.product_service.repository.SubCategoryRepository;
 import com.advann.product_service.service.services.ProductService;
 import com.advann.product_service.service.services.S3Service;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import net.coobird.thumbnailator.Thumbnails;
 import org.modelmapper.ModelMapper;
@@ -166,7 +167,7 @@ public class ProductServiceImpl implements ProductService {
 
         existing.setName(productRequestDto.getName());
         existing.setPrice(productRequestDto.getPrice());
-        existing.setQuantity(productRequestDto.getQuantity());
+        existing.setStock(productRequestDto.getStock());
 
         Category category = categoryRepository.findById(productRequestDto.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -268,7 +269,7 @@ public class ProductServiceImpl implements ProductService {
                         .id(product.getId())
                         .name(product.getName())
                         .price(product.getPrice())
-                        .quantity(product.getQuantity())
+                        .stock(product.getStock())
 
                         .categoryId(product.getCategory() != null ? product.getCategory().getId() : null)
                         .categoryName(product.getCategory() != null ? product.getCategory().getName() : null)
@@ -598,20 +599,39 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public void reduceStock(Long productId, Integer quantity) {
-
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
 
         if (quantity <= 0) {
             throw new RuntimeException("Quantity must be greater than 0");
         }
 
-        if (product.getQuantity() < quantity) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Product not found with id: " + productId));
+
+        if (product.getStock() < quantity) {
             throw new RuntimeException("Insufficient stock for product: " + product.getName());
         }
 
-        product.setQuantity(product.getQuantity() - quantity);
+        product.setStock(product.getStock() - quantity);
+
+        productRepository.save(product);
+    }
+
+    @Override
+    @Transactional
+    public void increaseStock(Long productId, Integer quantity) {
+
+        if (quantity <= 0) {
+            throw new RuntimeException("Quantity must be greater than 0");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Product not found with id: " + productId));
+
+        product.setStock(product.getStock() + quantity);
 
         productRepository.save(product);
     }
