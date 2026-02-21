@@ -167,19 +167,50 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public OrderResponseDto updatePaymentStatus(Long orderId, PaymentStatusUpdateRequestDto requestDto) {
+    @Transactional
+    public OrderResponseDto updatePaymentStatus(
+            Long orderId,
+            PaymentStatusUpdateRequestDto requestDto) {
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found with id: " + orderId));
 
-        order.setPaymentStatus(requestDto.getPaymentStatus());
+        // 1️⃣ Prevent duplicate payment processing
+        if (order.getPaymentStatus() != PaymentStatus.PENDING) {
+            throw new RuntimeException("Payment already processed for this order");
+        }
 
-        if (requestDto.getPaymentStatus() == PaymentStatus.PAID) {
+        PaymentStatus newStatus = requestDto.getPaymentStatus();
+
+        // 2️⃣ Handle PAID case
+        if (newStatus == PaymentStatus.PAID) {
+            order.setPaymentStatus(PaymentStatus.PAID);
             order.setOrderStatus(OrderStatus.PAID);
         }
 
-        if (order.getOrderStatus() != OrderStatus.CREATED) {
-            throw new RuntimeException("Payment already processed or invalid state");
+        // 3️⃣ Handle FAILED case
+        else if (newStatus == PaymentStatus.FAILED) {
+
+            order.setPaymentStatus(PaymentStatus.FAILED);
+
+            // Restore stock because payment failed
+            List<OrderItem> orderItems =
+                    orderItemRepository.findByOrderId(orderId);
+
+            for (OrderItem item : orderItems) {
+                productClient.increaseStock(
+                        item.getProductId(),
+                        item.getQuantity()
+                );
+            }
+
+            // Order remains CREATED
+            order.setOrderStatus(OrderStatus.CREATED);
+        }
+
+        else {
+            throw new RuntimeException("Invalid payment status update");
         }
 
         orderRepository.save(order);

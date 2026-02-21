@@ -20,6 +20,7 @@ public class JwtAuthFilter implements GlobalFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        System.out.println("JWT FILTER EXECUTING");
 
         String path = exchange.getRequest().getURI().getPath();
         HttpMethod method = exchange.getRequest().getMethod();
@@ -31,6 +32,7 @@ public class JwtAuthFilter implements GlobalFilter {
                 || (path.startsWith("/api/products") && method == HttpMethod.GET)) {
             return chain.filter(exchange);
         }
+        System.out.println("Incoming path: " + path);
 
         // =========================
         // AUTHORIZATION HEADER CHECK

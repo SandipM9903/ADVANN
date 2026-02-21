@@ -3,7 +3,7 @@ version: "3.8"
 services:
 
   postgres-db:
-    image: postgres:15
+    image: postgres:17
     container_name: postgres-db
     restart: always
     environment:
@@ -12,6 +12,8 @@ services:
       POSTGRES_PASSWORD: root
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   eureka-server:
     build: ./eureka-service-registry
@@ -88,3 +90,6 @@ services:
     environment:
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+
+volumes:
+  postgres_data:
