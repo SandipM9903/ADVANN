@@ -50,4 +50,7 @@ public class Product {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images = new ArrayList<>();
+
+    @Column(nullable = false)
+    private Integer reservedStock = 0;
 }

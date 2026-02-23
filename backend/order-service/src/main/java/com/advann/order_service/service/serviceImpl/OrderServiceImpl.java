@@ -42,7 +42,6 @@ public class OrderServiceImpl implements OrderService {
 
         CartResponseDto cart = cartResponse.getData();
 
-        // Create Order
         Order order = Order.builder()
                 .userId(userId)
                 .orderStatus(OrderStatus.CREATED)
@@ -50,41 +49,53 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmount(cart.getGrandTotal())
                 .build();
 
-        order = orderRepository.save(order);
+        List<CartItemResponseDto> cartItems = cart.getItems();
 
-        // Save Order Items
-        for (CartItemResponseDto cartItem : cart.getItems()) {
+        try {
 
-            ApiResponse<ProductResponseDto> productResponse =
-                    productClient.getProductById(cartItem.getProductId());
-
-            if (productResponse == null || productResponse.getData() == null) {
-                throw new ResourceNotFoundException("Product not found with id: " + cartItem.getProductId());
+            // Step 1: Reserve stock for all items
+            for (CartItemResponseDto cartItem : cartItems) {
+                productClient.reserveStock(cartItem.getProductId(), cartItem.getQuantity());
             }
 
-            ProductResponseDto product = productResponse.getData();
+            // Step 2: Save Order
+            order = orderRepository.save(order);
 
-            if (product.getStock() < cartItem.getQuantity()) {
-                throw new RuntimeException("Insufficient stock for product: " + product.getName());
+            // Step 3: Save Order Items
+            for (CartItemResponseDto cartItem : cartItems) {
+
+                OrderItem orderItem = OrderItem.builder()
+                        .order(order)
+                        .productId(cartItem.getProductId())
+                        .quantity(cartItem.getQuantity())
+                        .price(cartItem.getPrice())
+                        .build();
+
+                orderItemRepository.save(orderItem);
             }
 
-            // Reduce Stock in product-service
-            productClient.reduceStock(cartItem.getProductId(), cartItem.getQuantity());
+            // Step 4: Clear Cart
+            cartClient.clearCart(userId);
 
-            OrderItem orderItem = OrderItem.builder()
-                    .order(order)
-                    .productId(cartItem.getProductId())
-                    .quantity(cartItem.getQuantity())
-                    .price(cartItem.getPrice())
-                    .build();
+            return getOrderById(order.getId());
 
-            orderItemRepository.save(orderItem);
+        } catch (Exception e) {
+
+            // 🔥 Compensation Logic
+            // If anything fails after reservation, release reserved stock
+
+            for (CartItemResponseDto cartItem : cartItems) {
+                try {
+                    productClient.releaseStock(cartItem.getProductId(), cartItem.getQuantity());
+                } catch (Exception ex) {
+                    // Log but do not suppress original exception
+                    System.err.println("Failed to release stock for productId: "
+                            + cartItem.getProductId());
+                }
+            }
+
+            throw new RuntimeException("Order placement failed. All reserved stock released.", e);
         }
-
-        // Clear cart after order placed
-        cartClient.clearCart(userId);
-
-        return getOrderById(order.getId());
     }
 
     @Override
@@ -101,17 +112,16 @@ public class OrderServiceImpl implements OrderService {
                     ApiResponse<ProductResponseDto> productResponse =
                             productClient.getProductById(item.getProductId());
 
-                    ProductResponseDto product = productResponse.getData();
+                    ProductResponseDto product =
+                            productResponse != null ? productResponse.getData() : null;
 
-                    OrderItemResponseDto dto = OrderItemResponseDto.builder()
+                    return OrderItemResponseDto.builder()
                             .productId(item.getProductId())
                             .productName(product != null ? product.getName() : null)
                             .quantity(item.getQuantity())
                             .price(item.getPrice())
                             .totalPrice(item.getTotalPrice())
                             .build();
-
-                    return dto;
                 })
                 .toList();
 
@@ -144,20 +154,16 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Order not found with id: " + orderId));
 
-        if (order.getOrderStatus() == OrderStatus.SHIPPED ||
-                order.getOrderStatus() == OrderStatus.DELIVERED) {
+        // Only allow cancel if still not confirmed
+        if (order.getOrderStatus() != OrderStatus.CREATED ||
+                order.getPaymentStatus() != PaymentStatus.PENDING) {
             throw new RuntimeException("Order cannot be cancelled at this stage");
         }
 
-        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
-            throw new RuntimeException("Order is already cancelled");
-        }
-
-        // Restore stock
         List<OrderItem> orderItems = orderItemRepository.findByOrderId(orderId);
 
         for (OrderItem item : orderItems) {
-            productClient.increaseStock(item.getProductId(), item.getQuantity());
+            productClient.releaseStock(item.getProductId(), item.getQuantity());
         }
 
         order.setOrderStatus(OrderStatus.CANCELLED);
@@ -176,37 +182,34 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Order not found with id: " + orderId));
 
-        // 1️⃣ Prevent duplicate payment processing
         if (order.getPaymentStatus() != PaymentStatus.PENDING) {
             throw new RuntimeException("Payment already processed for this order");
         }
 
         PaymentStatus newStatus = requestDto.getPaymentStatus();
 
-        // 2️⃣ Handle PAID case
+        List<OrderItem> orderItems = orderItemRepository.findByOrderId(orderId);
+
         if (newStatus == PaymentStatus.PAID) {
-            order.setPaymentStatus(PaymentStatus.PAID);
-            order.setOrderStatus(OrderStatus.PAID);
-        }
 
-        // 3️⃣ Handle FAILED case
-        else if (newStatus == PaymentStatus.FAILED) {
-
-            order.setPaymentStatus(PaymentStatus.FAILED);
-
-            // Restore stock because payment failed
-            List<OrderItem> orderItems =
-                    orderItemRepository.findByOrderId(orderId);
-
+            // 🔹 Confirm stock permanently
             for (OrderItem item : orderItems) {
-                productClient.increaseStock(
-                        item.getProductId(),
-                        item.getQuantity()
-                );
+                productClient.confirmStock(item.getProductId(), item.getQuantity());
             }
 
-            // Order remains CREATED
-            order.setOrderStatus(OrderStatus.CREATED);
+            order.setPaymentStatus(PaymentStatus.PAID);
+            order.setOrderStatus(OrderStatus.CONFIRMED);
+        }
+
+        else if (newStatus == PaymentStatus.FAILED) {
+
+            // 🔹 Release reserved stock
+            for (OrderItem item : orderItems) {
+                productClient.releaseStock(item.getProductId(), item.getQuantity());
+            }
+
+            order.setPaymentStatus(PaymentStatus.FAILED);
+            order.setOrderStatus(OrderStatus.CANCELLED);
         }
 
         else {
@@ -218,6 +221,7 @@ public class OrderServiceImpl implements OrderService {
         return getOrderById(orderId);
     }
 
+    @Override
     @Transactional
     public OrderResponseDto updateOrderStatus(Long orderId, OrderStatus newStatus) {
 
@@ -225,18 +229,13 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Order not found with id: " + orderId));
 
-        // Prevent invalid transitions
         if (order.getOrderStatus() == OrderStatus.CANCELLED ||
                 order.getOrderStatus() == OrderStatus.DELIVERED) {
             throw new RuntimeException("Order status cannot be changed");
         }
 
-        if (order.getOrderStatus() == OrderStatus.CREATED && newStatus != OrderStatus.PAID) {
-            throw new RuntimeException("Order must be PAID first");
-        }
-
-        if (order.getOrderStatus() == OrderStatus.PAID && newStatus != OrderStatus.SHIPPED) {
-            throw new RuntimeException("Order must be SHIPPED after PAID");
+        if (order.getOrderStatus() == OrderStatus.CONFIRMED && newStatus != OrderStatus.SHIPPED) {
+            throw new RuntimeException("Order must be SHIPPED after CONFIRMED");
         }
 
         if (order.getOrderStatus() == OrderStatus.SHIPPED && newStatus != OrderStatus.DELIVERED) {

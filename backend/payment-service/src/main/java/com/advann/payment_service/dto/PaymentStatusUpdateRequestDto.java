@@ -1,5 +1,6 @@
 package com.advann.payment_service.dto;
 
+import com.advann.payment_service.enums.PaymentStatus;
 import lombok.*;
 
 @Data
@@ -7,5 +8,5 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class PaymentStatusUpdateRequestDto {
-    private String paymentStatus;
+    private PaymentStatus paymentStatus;
 }

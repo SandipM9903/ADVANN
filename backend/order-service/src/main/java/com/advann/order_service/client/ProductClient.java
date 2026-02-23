@@ -9,16 +9,23 @@ import org.springframework.web.bind.annotation.*;
 public interface ProductClient {
 
     @GetMapping("/api/products/{id}")
-    ApiResponse<ProductResponseDto> getProductById(@PathVariable("id") Long id);
+    ApiResponse<ProductResponseDto> getProductById(@PathVariable Long id);
 
-    @PutMapping("/api/products/reduce-stock/{id}/{quantity}")
-    ApiResponse<Object> reduceStock(
-            @PathVariable("id") Long productId,
-            @PathVariable("quantity") Integer quantity
+    @PostMapping("/internal/products/{productId}/reserve")
+    ApiResponse<Void> reserveStock(
+            @PathVariable Long productId,
+            @RequestParam Integer quantity
     );
 
-    @PutMapping("/api/products/increase-stock/{productId}")
-    ApiResponse<Void> increaseStock(
+    @PostMapping("/internal/products/{productId}/confirm")
+    ApiResponse<Void> confirmStock(
             @PathVariable Long productId,
-            @RequestParam Integer quantity);
+            @RequestParam Integer quantity
+    );
+
+    @PostMapping("/internal/products/{productId}/release")
+    ApiResponse<Void> releaseStock(
+            @PathVariable Long productId,
+            @RequestParam Integer quantity
+    );
 }

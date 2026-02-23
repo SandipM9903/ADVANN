@@ -84,9 +84,16 @@ public class PaymentServiceImpl implements PaymentService {
     public String verifyPayment(PaymentVerifyRequestDto dto) {
 
         Payment payment = paymentRepository.findByOrderId(dto.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Payment record not found for orderId: " + dto.getOrderId()));
+                .orElseThrow(() ->
+                        new RuntimeException("Payment record not found for orderId: " + dto.getOrderId()));
+
+        // 🔐 Idempotency protection
+        if (payment.getPaymentStatus() == PaymentStatus.PAID) {
+            return "Payment already verified";
+        }
 
         try {
+
             String payload = dto.getRazorpayOrderId() + "|" + dto.getRazorpayPaymentId();
 
             Mac sha256Hmac = Mac.getInstance("HmacSHA256");
@@ -100,49 +107,51 @@ public class PaymentServiceImpl implements PaymentService {
             byte[] hashBytes = sha256Hmac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
             String generatedSignature = HexFormat.of().formatHex(hashBytes);
 
-            // if signature mismatch
             if (!generatedSignature.equals(dto.getRazorpaySignature())) {
 
                 payment.setPaymentStatus(PaymentStatus.FAILED);
                 paymentRepository.save(payment);
 
-                // update order-service payment status as FAILED
-                PaymentStatusUpdateRequestDto statusDto = PaymentStatusUpdateRequestDto.builder()
-                        .paymentStatus("FAILED")
-                        .build();
-
-                orderClient.updatePaymentStatus(dto.getOrderId(), statusDto);
+                orderClient.updatePaymentStatus(
+                        dto.getOrderId(),
+                        PaymentStatusUpdateRequestDto.builder()
+                                .paymentStatus(PaymentStatus.FAILED)
+                                .build()
+                );
 
                 throw new RuntimeException("Payment signature verification failed");
             }
 
-            // payment verified successfully
+            // ✅ Payment verified successfully
             payment.setRazorpayPaymentId(dto.getRazorpayPaymentId());
             payment.setRazorpaySignature(dto.getRazorpaySignature());
             payment.setPaymentStatus(PaymentStatus.PAID);
 
             paymentRepository.save(payment);
 
-            // update order-service payment status as PAID
-            PaymentStatusUpdateRequestDto statusDto = PaymentStatusUpdateRequestDto.builder()
-                    .paymentStatus("PAID")
-                    .build();
-
-            orderClient.updatePaymentStatus(dto.getOrderId(), statusDto);
+            orderClient.updatePaymentStatus(
+                    dto.getOrderId(),
+                    PaymentStatusUpdateRequestDto.builder()
+                            .paymentStatus(PaymentStatus.PAID)
+                            .build()
+            );
 
             return "Payment verified successfully";
 
         } catch (Exception e) {
 
-            payment.setPaymentStatus(PaymentStatus.FAILED);
-            paymentRepository.save(payment);
+            if (payment.getPaymentStatus() != PaymentStatus.PAID) {
 
-            // update order-service payment status as FAILED
-            PaymentStatusUpdateRequestDto statusDto = PaymentStatusUpdateRequestDto.builder()
-                    .paymentStatus("FAILED")
-                    .build();
+                payment.setPaymentStatus(PaymentStatus.FAILED);
+                paymentRepository.save(payment);
 
-            orderClient.updatePaymentStatus(dto.getOrderId(), statusDto);
+                orderClient.updatePaymentStatus(
+                        dto.getOrderId(),
+                        PaymentStatusUpdateRequestDto.builder()
+                                .paymentStatus(PaymentStatus.FAILED)
+                                .build()
+                );
+            }
 
             throw new RuntimeException("Payment verification failed: " + e.getMessage());
         }

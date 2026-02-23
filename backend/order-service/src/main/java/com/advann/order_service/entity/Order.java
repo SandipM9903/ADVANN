@@ -55,4 +55,7 @@ public class Order {
     public void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    @Version
+    private Long version;
 }

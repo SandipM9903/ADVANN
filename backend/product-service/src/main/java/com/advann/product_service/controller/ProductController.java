@@ -238,35 +238,4 @@ public class ProductController {
                 new ApiResponse<>(true, "Presigned URL generated successfully", presignedUrl)
         );
     }
-
-    @PutMapping("/reduce-stock/{id}/{stock}")
-    public ResponseEntity<ApiResponse<Object>> reduceStock(
-            @PathVariable Long id,
-            @PathVariable Integer stock
-    ) {
-
-        productService.reduceStock(id, stock);
-
-        ProductResponseDto product = productService.getProductById(id);
-
-        return ResponseEntity.ok(
-                ApiResponse.builder()
-                        .success(true)
-                        .message("Stock reduced successfully")
-                        .data(product)
-                        .build()
-        );
-    }
-
-    @PutMapping("/increase-stock/{productId}")
-    public ResponseEntity<ApiResponse<Void>> increaseStock(
-            @PathVariable Long productId,
-            @RequestParam Integer quantity) {
-
-        productService.increaseStock(productId, quantity);
-
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Stock increased successfully", null)
-        );
-    }
 }

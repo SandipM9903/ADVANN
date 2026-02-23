@@ -600,37 +600,61 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public void reduceStock(Long productId, Integer quantity) {
+    public void reserveStock(Long productId, Integer quantity) {
 
-        if (quantity <= 0) {
-            throw new RuntimeException("Quantity must be greater than 0");
+        if (quantity == null || quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero");
         }
 
         Product product = productRepository.findById(productId)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Product not found with id: " + productId));
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
 
         if (product.getStock() < quantity) {
-            throw new RuntimeException("Insufficient stock for product: " + product.getName());
+            throw new IllegalStateException("Insufficient stock for product id: " + productId);
         }
 
         product.setStock(product.getStock() - quantity);
+        product.setReservedStock(product.getReservedStock() + quantity);
 
         productRepository.save(product);
     }
 
     @Override
     @Transactional
-    public void increaseStock(Long productId, Integer quantity) {
+    public void confirmStock(Long productId, Integer quantity) {
 
-        if (quantity <= 0) {
-            throw new RuntimeException("Quantity must be greater than 0");
+        if (quantity == null || quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero");
         }
 
         Product product = productRepository.findById(productId)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Product not found with id: " + productId));
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
 
+        if (product.getReservedStock() < quantity) {
+            throw new IllegalStateException("Reserved stock is less than quantity for product id: " + productId);
+        }
+
+        product.setReservedStock(product.getReservedStock() - quantity);
+
+        productRepository.save(product);
+    }
+
+    @Override
+    @Transactional
+    public void releaseStock(Long productId, Integer quantity) {
+
+        if (quantity == null || quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+        if (product.getReservedStock() < quantity) {
+            throw new IllegalStateException("Reserved stock is less than quantity for product id: " + productId);
+        }
+
+        product.setReservedStock(product.getReservedStock() - quantity);
         product.setStock(product.getStock() + quantity);
 
         productRepository.save(product);

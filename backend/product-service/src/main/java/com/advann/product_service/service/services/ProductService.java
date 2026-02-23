@@ -32,6 +32,7 @@ public interface ProductService {
     void deleteProductImageById(Long imageId);
     ProductResponseDto setPrimaryProductImage(Long imageId);
     PagedResponseDto<ProductImageResponseDto> getProductImagesWithPagination(Long productId, int page, int size, String sortDir);
-    void reduceStock(Long productId, Integer stock);
-    void increaseStock(Long productId, Integer quantity);
+    void reserveStock(Long productId, Integer quantity);
+    void confirmStock(Long productId, Integer quantity);
+    void releaseStock(Long productId, Integer quantity);
 }
