@@ -2,6 +2,7 @@ package com.advann.product_service.exceptions;
 
 import com.advann.product_service.payload.ApiResponse;
 import com.advann.product_service.payload.ErrorResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleResourceNotFound(ResourceNotFoundException ex) {
@@ -48,10 +50,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
+        log.error("Internal Server Error occurred: ", ex);
+        String errorMessage = "Something went wrong: " + ex.getMessage();
+        if (ex.getCause() != null) {
+            errorMessage += " | Cause: " + ex.getCause().getClass().getSimpleName();
+        }
 
         ApiResponse<Object> response = ApiResponse.builder()
                 .success(false)
-                .message("Something went wrong: " + ex.getMessage())
+                .message(errorMessage)
                 .data(null)
                 .build();
 

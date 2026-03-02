@@ -23,6 +23,8 @@ import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -127,17 +129,20 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(value = "products", key = "#id")
     public ProductResponseDto getProductById(Long id) {
 
-        log.info("Fetching product by id: {}", id);
+        log.info("Fetching product by id from DB: {}", id);
 
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> {
                     log.warn("Product not found with id: {}", id);
-                    return new ResourceNotFoundException("Product not found with id: " + id);
+                    return new ResourceNotFoundException(
+                            "Product not found with id: " + id);
                 });
 
-        ProductResponseDto dto = modelMapper.map(product, ProductResponseDto.class);
+        ProductResponseDto dto =
+                modelMapper.map(product, ProductResponseDto.class);
 
         dto.setImageUrl(buildImageUrl(product.getImagePath()));
 
@@ -154,36 +159,43 @@ public class ProductServiceImpl implements ProductService {
         return dto;
     }
 
+
     @Override
-    public ProductResponseDto updateProduct(Long id, ProductRequestDto productRequestDto) {
+    @CacheEvict(value = "products", key = "#id")
+    public ProductResponseDto updateProduct(Long id,
+                                            ProductRequestDto productRequestDto) {
 
         log.info("Updating product with id: {}", id);
 
         Product existing = productRepository.findById(id)
                 .orElseThrow(() -> {
                     log.warn("Cannot update. Product not found with id: {}", id);
-                    return new ResourceNotFoundException("Product not found with id: " + id);
+                    return new ResourceNotFoundException(
+                            "Product not found with id: " + id);
                 });
 
         existing.setName(productRequestDto.getName());
         existing.setPrice(productRequestDto.getPrice());
         existing.setStock(productRequestDto.getStock());
 
-        Category category = categoryRepository.findById(productRequestDto.getCategoryId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Category not found with id: " + productRequestDto.getCategoryId()
-                ));
+        Category category = categoryRepository
+                .findById(productRequestDto.getCategoryId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Category not found with id: "
+                                        + productRequestDto.getCategoryId()));
 
-        SubCategory subCategory = subCategoryRepository.findById(productRequestDto.getSubCategoryId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "SubCategory not found with id: " + productRequestDto.getSubCategoryId()
-                ));
+        SubCategory subCategory = subCategoryRepository
+                .findById(productRequestDto.getSubCategoryId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "SubCategory not found with id: "
+                                        + productRequestDto.getSubCategoryId()));
 
-        if (!subCategory.getCategory().getId().equals(category.getId())) {
+        if (!subCategory.getCategory().getId()
+                .equals(category.getId())) {
             throw new ResourceNotFoundException(
-                    "SubCategory id " + productRequestDto.getSubCategoryId() +
-                            " does not belong to Category id " + productRequestDto.getCategoryId()
-            );
+                    "SubCategory does not belong to Category");
         }
 
         existing.setCategory(category);
@@ -191,7 +203,8 @@ public class ProductServiceImpl implements ProductService {
 
         Product updated = productRepository.save(existing);
 
-        ProductResponseDto responseDto = modelMapper.map(updated, ProductResponseDto.class);
+        ProductResponseDto responseDto =
+                modelMapper.map(updated, ProductResponseDto.class);
 
         responseDto.setCategoryId(category.getId());
         responseDto.setCategoryName(category.getName());
@@ -199,10 +212,12 @@ public class ProductServiceImpl implements ProductService {
         responseDto.setSubCategoryId(subCategory.getId());
         responseDto.setSubCategoryName(subCategory.getName());
 
-        responseDto.setImageUrl(buildImageUrl(updated.getImagePath()));
+        responseDto.setImageUrl(
+                buildImageUrl(updated.getImagePath()));
 
         return responseDto;
     }
+
 
     @Override
     public void deleteProduct(Long id) {

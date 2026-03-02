@@ -1,5 +1,6 @@
 package com.advann.product_service.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -49,6 +50,7 @@ public class Product {
     private String imagePath;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<ProductImage> images = new ArrayList<>();
 
     @Column(nullable = false)

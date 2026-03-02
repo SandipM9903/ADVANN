@@ -2,11 +2,14 @@ package com.advann.product_service.dto;
 
 import lombok.*;
 
+import java.io.Serializable;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class ProductImageResponseDto {
+public class ProductImageResponseDto implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     private Long id;
 
