@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -53,6 +54,7 @@ public class ProductServiceImpl implements ProductService {
     private static final int MAX_GALLERY_IMAGES = 5;
 
     @Override
+    @CacheEvict(value = "productList", allEntries = true)
     public ProductResponseDto addProduct(ProductRequestDto productRequestDto) {
 
         log.info("Creating new product with name: {}", productRequestDto.getName());
@@ -98,6 +100,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable("productList")
     public List<ProductResponseDto> getAllProducts() {
 
         log.info("Fetching all products");
@@ -161,7 +164,10 @@ public class ProductServiceImpl implements ProductService {
 
 
     @Override
-    @CacheEvict(value = "products", key = "#id")
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#id"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public ProductResponseDto updateProduct(Long id,
                                             ProductRequestDto productRequestDto) {
 
@@ -218,8 +224,10 @@ public class ProductServiceImpl implements ProductService {
         return responseDto;
     }
 
-
-    @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#id"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public void deleteProduct(Long id) {
 
         log.info("Deleting product with id: {}", id);
@@ -309,6 +317,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public ProductResponseDto uploadProductImage(Long productId, MultipartFile file) {
 
         Product product = productRepository.findById(productId)
@@ -374,6 +386,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public ProductResponseDto deleteProductImage(Long productId) {
 
         Product product = productRepository.findById(productId)
@@ -397,6 +413,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public ProductResponseDto updateProductImage(Long productId, MultipartFile file) {
 
         Product product = productRepository.findById(productId)
@@ -421,6 +441,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public List<ProductImageResponseDto> uploadProductImages(Long productId, List<MultipartFile> files) {
 
         Product product = productRepository.findById(productId)
@@ -520,6 +544,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public void deleteProductImageById(Long imageId) {
 
         ProductImage productImage = productImageRepository.findById(imageId)
@@ -561,6 +589,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public ProductResponseDto setPrimaryProductImage(Long imageId) {
 
         ProductImage productImage = productImageRepository.findById(imageId)
@@ -615,6 +647,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public void reserveStock(Long productId, Integer quantity) {
 
         if (quantity == null || quantity <= 0) {
@@ -636,6 +672,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public void confirmStock(Long productId, Integer quantity) {
 
         if (quantity == null || quantity <= 0) {
@@ -656,6 +696,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "products", key = "#productId"),
+            @CacheEvict(value = "productList", allEntries = true)
+    })
     public void releaseStock(Long productId, Integer quantity) {
 
         if (quantity == null || quantity <= 0) {
