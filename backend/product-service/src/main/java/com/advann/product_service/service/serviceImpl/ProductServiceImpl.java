@@ -27,6 +27,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.*;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -657,17 +658,26 @@ public class ProductServiceImpl implements ProductService {
             throw new IllegalArgumentException("Quantity must be greater than zero");
         }
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        try {
 
-        if (product.getStock() < quantity) {
-            throw new IllegalStateException("Insufficient stock for product id: " + productId);
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException("Product not found with id: " + productId));
+
+            if (product.getStock() < quantity) {
+                throw new IllegalStateException("Insufficient stock for product id: " + productId);
+            }
+
+            product.setStock(product.getStock() - quantity);
+            product.setReservedStock(product.getReservedStock() + quantity);
+
+            productRepository.save(product);
+
+        } catch (ObjectOptimisticLockingFailureException ex) {
+
+            throw new IllegalStateException(
+                    "Stock update conflict. Product was modified by another transaction. Please retry.");
         }
-
-        product.setStock(product.getStock() - quantity);
-        product.setReservedStock(product.getReservedStock() + quantity);
-
-        productRepository.save(product);
     }
 
     @Override
